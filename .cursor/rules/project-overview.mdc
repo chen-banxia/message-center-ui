@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 项目概述
+
+这是一个基于 Vue 3 的消息中心 UI 项目，使用了以下技术栈：
+
+- Vue 3 - 前端框架
+- Vue Router - 路由管理
+- Pinia - 状态管理
+- Vite - 构建工具
+
+## 项目结构
+
+- [main.js](mdc:src/main.js) - 应用程序入口点
+- [App.vue](mdc:src/App.vue) - 根组件
+- [router/index.js](mdc:src/router/index.js) - 路由配置
+- [stores/counter.js](mdc:src/stores/counter.js) - Pinia 状态管理示例
+
+## 目录结构
+
+- `src/components/` - 可复用组件
+- `src/views/` - 页面级组件
+- `src/stores/` - Pinia 状态管理
+- `src/router/` - Vue Router 配置
+- `src/assets/` - 静态资源（图片、样式等）
+

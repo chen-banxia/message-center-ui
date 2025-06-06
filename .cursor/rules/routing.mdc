@@ -1,0 +1,44 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 路由规则
+
+项目使用 Vue Router 进行路由管理。路由配置文件位于 [router/index.js](mdc:src/router/index.js)。
+
+## 路由配置
+
+当前配置了以下路由：
+
+- `/` - 首页，对应 [HomeView.vue](mdc:src/views/HomeView.vue)
+- `/about` - 关于页，对应 [AboutView.vue](mdc:src/views/AboutView.vue)（懒加载）
+
+## 添加新路由
+
+添加新路由时，请遵循以下步骤：
+
+1. 在 `src/views` 目录下创建新的视图组件
+2. 在 [router/index.js](mdc:src/router/index.js) 中添加新的路由配置
+3. 对于大型页面，建议使用懒加载方式导入组件：
+   ```js
+   component: () => import('../views/YourView.vue')
+   ```
+
+## 路由导航
+
+在组件中使用 `RouterLink` 组件进行导航：
+
+```vue
+<RouterLink to="/your-route">导航文本</RouterLink>
+```
+
+或者使用编程式导航：
+
+```js
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+router.push('/your-route')
+```
+

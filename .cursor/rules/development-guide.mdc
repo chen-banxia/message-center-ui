@@ -1,0 +1,57 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 开发指南
+
+## 项目设置
+
+1. 安装依赖：
+   ```bash
+   npm install
+   ```
+
+2. 启动开发服务器：
+   ```bash
+   npm run dev
+   ```
+
+3. 构建生产版本：
+   ```bash
+   npm run build
+   ```
+
+4. 预览生产版本：
+   ```bash
+   npm run preview
+   ```
+
+## 项目配置
+
+- [vite.config.js](mdc:vite.config.js) - Vite 构建工具配置
+- [jsconfig.json](mdc:jsconfig.json) - JavaScript 配置
+
+## 代码风格指南
+
+### Vue 组件
+
+- 使用 `<script setup>` 语法
+- 组件名称使用 PascalCase 命名
+- 文件名与组件名一致
+- 视图组件以 `View` 结尾
+- 通用组件放在 `components` 目录
+- 页面级组件放在 `views` 目录
+
+### JavaScript
+
+- 使用 ES6+ 语法
+- 使用 `const` 和 `let`，避免使用 `var`
+- 使用箭头函数
+- 使用解构赋值
+
+### CSS
+
+- 组件样式使用 `scoped` 属性
+- 全局样式放在 `src/assets` 目录下
+

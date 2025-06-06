@@ -1,0 +1,55 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 状态管理规则
+
+项目使用 Pinia 进行状态管理。Pinia 是 Vue 官方推荐的状态管理库，替代了 Vuex。
+
+## Store 结构
+
+Store 文件位于 `src/stores` 目录下，示例文件为 [counter.js](mdc:src/stores/counter.js)。
+
+## 创建 Store
+
+使用 `defineStore` 函数创建 store：
+
+```js
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export const useYourStore = defineStore('your-store', () => {
+  // 状态
+  const state = ref(initialValue)
+  
+  // Getters (计算属性)
+  const derivedState = computed(() => state.value * 2)
+  
+  // Actions (方法)
+  function updateState(newValue) {
+    state.value = newValue
+  }
+  
+  return { state, derivedState, updateState }
+})
+```
+
+## 使用 Store
+
+在组件中使用 store：
+
+```vue
+<script setup>
+import { useYourStore } from '@/stores/your-store'
+
+const store = useYourStore()
+
+// 访问状态
+console.log(store.state)
+
+// 调用 action
+store.updateState(newValue)
+</script>
+```
+
