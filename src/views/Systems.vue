@@ -204,9 +204,42 @@ onMounted(() => {
         style="width: 100%"
         :header-cell-style="{ background: '#f5f7fa' }"
       >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="系统名称" min-width="150" />
-        <el-table-column prop="description" label="系统描述" min-width="200" />
+        <el-table-column prop="id" label="系统ID" width="80" />
+        <el-table-column prop="name" label="系统名称" min-width="120" />
+        <el-table-column prop="description" label="系统描述" min-width="180" />
+        <el-table-column prop="apiKey" label="接入密钥" min-width="200">
+          <template #default="{ row }">
+            <el-tooltip 
+              :content="row.apiKey || '未设置'" 
+              placement="top" 
+              effect="light"
+            >
+              <span>{{ row.apiKey ? row.apiKey.substring(0, 8) + '...' : '未设置' }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column prop="callbackUrl" label="回调URL" min-width="180">
+          <template #default="{ row }">
+            <el-tooltip 
+              :content="row.callbackUrl || '未设置'" 
+              placement="top" 
+              effect="light"
+            >
+              <span>{{ row.callbackUrl || '未设置' }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column prop="ipWhitelist" label="IP白名单" min-width="150">
+          <template #default="{ row }">
+            <el-tooltip 
+              :content="row.ipWhitelist || '未设置'" 
+              placement="top" 
+              effect="light"
+            >
+              <span>{{ row.ipWhitelist ? (row.ipWhitelist.split(',').length + '个IP') : '未设置' }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 'enabled' ? 'success' : 'info'" effect="light">
@@ -249,6 +282,14 @@ onMounted(() => {
       <el-form :model="currentSystem" label-width="100px">
         <el-row :gutter="20">
           <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+            <el-form-item label="系统ID" v-if="dialogMode === 'edit'">
+              <el-input v-model="currentSystem.id" disabled />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
             <el-form-item label="系统名称" required>
               <el-input v-model="currentSystem.name" placeholder="请输入系统名称" />
             </el-form-item>
@@ -287,6 +328,19 @@ onMounted(() => {
             :rows="2"
           />
         </el-form-item>
+        
+        <el-row :gutter="20" v-if="dialogMode === 'edit'">
+          <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+            <el-form-item label="创建时间">
+              <el-input v-model="currentSystem.createTime" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+            <el-form-item label="更新时间">
+              <el-input v-model="currentSystem.updateTime" disabled />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       
       <template #footer>
