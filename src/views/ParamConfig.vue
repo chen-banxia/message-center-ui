@@ -56,6 +56,69 @@ const channelTypes = computed(() => {
   ]
 })
 
+// 默认映射配置对话框可见性
+const mappingDialogVisible = ref(false)
+// 当前编辑的默认映射配置
+const currentMappingConfig = ref({
+  standardParam: null,
+  mappings: {}
+})
+
+// 各渠道特定参数
+const channelSpecificParams = {
+  email: [
+    { key: 'to_email', label: '收件人邮箱', description: '接收者的邮箱地址' },
+    { key: 'cc', label: '抄送', description: '抄送邮箱列表' },
+    { key: 'bcc', label: '密送', description: '密送邮箱列表' },
+    { key: 'subject', label: '邮件主题', description: '邮件的标题' },
+    { key: 'html_body', label: 'HTML正文', description: '邮件的HTML格式正文' },
+    { key: 'text_body', label: '纯文本正文', description: '邮件的纯文本格式正文' },
+    { key: 'attachments', label: '附件列表', description: '邮件的附件列表' }
+  ],
+  sms: [
+    { key: 'phone_number', label: '手机号码', description: '接收者的手机号码' },
+    { key: 'content', label: '短信内容', description: '短信的文本内容' },
+    { key: 'template_code', label: '模板编码', description: '短信服务商的模板编码' },
+    { key: 'template_param', label: '模板参数', description: '短信模板的参数' }
+  ],
+  wechat: [
+    { key: 'open_id', label: '微信OpenID', description: '接收者的微信OpenID' },
+    { key: 'template_id', label: '模板ID', description: '微信模板消息的模板ID' },
+    { key: 'first_data', label: '首行数据', description: '模板消息的首行数据' },
+    { key: 'remark', label: '备注', description: '模板消息的备注内容' },
+    { key: 'url', label: '跳转链接', description: '点击消息后的跳转链接' },
+    { key: 'mini_program', label: '小程序信息', description: '关联的小程序信息' }
+  ],
+  dingtalk: [
+    { key: 'user_id', label: '用户ID', description: '钉钉用户的唯一标识' },
+    { key: 'msg_type', label: '消息类型', description: '钉钉消息的类型' },
+    { key: 'title', label: '标题', description: '消息的标题' },
+    { key: 'text', label: '文本内容', description: '消息的文本内容' },
+    { key: 'markdown', label: 'Markdown内容', description: '消息的Markdown内容' }
+  ],
+  webhook: [
+    { key: 'payload', label: '请求数据', description: 'Webhook请求的数据体' },
+    { key: 'headers', label: '请求头', description: 'Webhook请求的头信息' }
+  ],
+  internal: [
+    { key: 'user_id', label: '用户ID', description: '系统内部用户的唯一标识' },
+    { key: 'title', label: '标题', description: '站内信的标题' },
+    { key: 'content', label: '内容', description: '站内信的内容' },
+    { key: 'type', label: '类型', description: '站内信的类型' },
+    { key: 'link', label: '链接', description: '相关的链接地址' }
+  ]
+}
+
+// 默认映射关系表
+const defaultMappings = ref([])
+
+// 监听 messageStore 中的默认参数映射配置变化
+const initDefaultMappings = () => {
+  if (messageStore.defaultParamMappings && messageStore.defaultParamMappings.length > 0) {
+    defaultMappings.value = JSON.parse(JSON.stringify(messageStore.defaultParamMappings))
+  }
+}
+
 // 筛选后的参数列表
 const filteredParams = computed(() => {
   let result = [...standardParams.value]
@@ -308,9 +371,111 @@ const getValidationRuleText = (rules) => {
   return texts.join(', ')
 }
 
+// 打开默认映射配置对话框
+const openMappingDialog = (param) => {
+  // 查找该参数的默认映射配置
+  const existingMapping = defaultMappings.value.find(m => m.standardParam === param.key)
+  
+  if (existingMapping) {
+    // 如果存在，使用现有配置
+    currentMappingConfig.value = JSON.parse(JSON.stringify(existingMapping))
+  } else {
+    // 如果不存在，创建新配置
+    currentMappingConfig.value = {
+      standardParam: param.key,
+      mappings: {
+        email: '',
+        sms: '',
+        wechat: '',
+        dingtalk: '',
+        webhook: '',
+        internal: ''
+      }
+    }
+  }
+  
+  mappingDialogVisible.value = true
+}
+
+// 保存默认映射配置
+const saveMappingConfig = () => {
+  const index = defaultMappings.value.findIndex(m => m.standardParam === currentMappingConfig.value.standardParam)
+  
+  if (index !== -1) {
+    // 更新现有配置
+    defaultMappings.value[index] = { ...currentMappingConfig.value }
+  } else {
+    // 添加新配置
+    defaultMappings.value.push({ ...currentMappingConfig.value })
+  }
+  
+  // 将更新后的配置同步到 messageStore
+  messageStore.updateDefaultParamMappings(defaultMappings.value)
+  
+  ElMessage.success('默认映射配置已保存')
+  mappingDialogVisible.value = false
+}
+
+// 获取渠道参数显示名称
+const getChannelParamLabel = (channelType, paramKey) => {
+  if (!paramKey) return '-'
+  
+  const param = channelSpecificParams[channelType]?.find(p => p.key === paramKey)
+  return param ? param.label : paramKey
+}
+
+// 获取标准参数的默认映射
+const getDefaultMappingForParam = (paramKey) => {
+  return defaultMappings.value.find(m => m.standardParam === paramKey)?.mappings || {}
+}
+
+// 导出默认映射配置
+const exportMappingConfig = () => {
+  const configData = JSON.stringify(defaultMappings.value, null, 2)
+  const blob = new Blob([configData], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'param-mappings-config.json'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  
+  ElMessage.success('配置已导出')
+}
+
+// 导入默认映射配置
+const importMappingConfig = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const config = JSON.parse(e.target.result)
+      defaultMappings.value = config
+      // 将导入的配置同步到 messageStore
+      messageStore.updateDefaultParamMappings(config)
+      ElMessage.success('配置已导入')
+    } catch (error) {
+      ElMessage.error('导入失败，请检查文件格式')
+    }
+  }
+  reader.readAsText(file)
+}
+
 onMounted(() => {
   // 加载标准参数
   loadStandardParams()
+  
+  // 加载默认参数映射配置
+  if (!messageStore.defaultParamMappings || messageStore.defaultParamMappings.length === 0) {
+    messageStore.loadDefaultParamMappings()
+  }
+  
+  // 初始化默认映射配置
+  initDefaultMappings()
 })
 </script>
 
@@ -322,121 +487,212 @@ onMounted(() => {
       </el-col>
     </el-row>
     
-    <!-- 筛选工具栏 -->
-    <el-card shadow="hover" class="filter-card">
-      <el-row :gutter="20">
-        <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6">
-          <el-input
-            v-model="searchKeyword"
-            placeholder="搜索参数名称..."
-            clearable
-            prefix-icon="Search"
-          />
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6" :lg="4" :xl="4">
-          <el-select v-model="typeFilter" placeholder="参数类型" class="filter-select">
-            <el-option label="全部类型" value="all" />
-            <el-option
-              v-for="option in paramTypeOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6" :lg="8" :xl="8">
-          <el-select 
-            v-model="channelFilter" 
-            placeholder="适用渠道" 
-            class="filter-select"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
+    <!-- 标签页 -->
+    <el-tabs type="border-card">
+      <el-tab-pane label="参数管理">
+        <!-- 筛选工具栏 -->
+        <el-card shadow="hover" class="filter-card">
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6">
+              <el-input
+                v-model="searchKeyword"
+                placeholder="搜索参数名称..."
+                clearable
+                prefix-icon="Search"
+              />
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="6" :lg="4" :xl="4">
+              <el-select v-model="typeFilter" placeholder="参数类型" class="filter-select">
+                <el-option label="全部类型" value="all" />
+                <el-option
+                  v-for="option in paramTypeOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="6" :lg="8" :xl="8">
+              <el-select 
+                v-model="channelFilter" 
+                placeholder="适用渠道" 
+                class="filter-select"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+              >
+                <el-option
+                  v-for="option in channelTypes"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6" class="action-buttons">
+              <el-button type="primary" @click="openAddDialog">
+                <el-icon><Plus /></el-icon>新增参数
+              </el-button>
+            </el-col>
+          </el-row>
+        </el-card>
+        
+        <!-- 参数列表 -->
+        <el-card shadow="hover" class="param-list-card">
+          <el-table
+            v-loading="loading"
+            :data="filteredParams"
+            style="width: 100%"
+            :header-cell-style="{ background: '#f5f7fa' }"
           >
-            <el-option
-              v-for="option in channelTypes"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6" class="action-buttons">
-          <el-button type="primary" @click="openAddDialog">
-            <el-icon><Plus /></el-icon>新增参数
-          </el-button>
-        </el-col>
-      </el-row>
-    </el-card>
-    
-    <!-- 参数列表 -->
-    <el-card shadow="hover" class="param-list-card">
-      <el-table
-        v-loading="loading"
-        :data="filteredParams"
-        style="width: 100%"
-        :header-cell-style="{ background: '#f5f7fa' }"
-      >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column label="参数标识" min-width="120">
-          <template #default="{ row }">
-            <el-tag type="info" effect="plain">{{ row.key }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="label" label="参数名称" min-width="120" />
-        <el-table-column prop="description" label="描述" min-width="200" />
-        <el-table-column label="类型" width="100">
-          <template #default="{ row }">
-            <el-tag>{{ getParamTypeName(row.type) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="必填" width="80" align="center">
-          <template #default="{ row }">
-            <el-icon v-if="row.required" color="#67C23A"><Check /></el-icon>
-            <el-icon v-else color="#909399"><Close /></el-icon>
-          </template>
-        </el-table-column>
-        <el-table-column prop="defaultValue" label="默认值" width="120" />
-        <el-table-column label="验证规则" min-width="150">
-          <template #default="{ row }">
-            <span>{{ getValidationRuleText(row.validationRules) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="适用渠道" min-width="200">
-          <template #default="{ row }">
-            <el-tag
-              v-for="channel in row.appliedChannels"
-              :key="channel"
-              size="small"
-              class="channel-tag"
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column label="参数标识" min-width="120">
+              <template #default="{ row }">
+                <el-tag type="info" effect="plain">{{ row.key }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="label" label="参数名称" min-width="120" />
+            <el-table-column prop="description" label="描述" min-width="200" />
+            <el-table-column label="类型" width="100">
+              <template #default="{ row }">
+                <el-tag>{{ getParamTypeName(row.type) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="必填" width="80" align="center">
+              <template #default="{ row }">
+                <el-icon v-if="row.required" color="#67C23A"><Check /></el-icon>
+                <el-icon v-else color="#909399"><Close /></el-icon>
+              </template>
+            </el-table-column>
+            <el-table-column prop="defaultValue" label="默认值" width="120" />
+            <el-table-column label="验证规则" min-width="150">
+              <template #default="{ row }">
+                <span>{{ getValidationRuleText(row.validationRules) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="适用渠道" min-width="200">
+              <template #default="{ row }">
+                <el-tag
+                  v-for="channel in row.appliedChannels"
+                  :key="channel"
+                  size="small"
+                  class="channel-tag"
+                >
+                  {{ getChannelTypeName(channel) }}
+                </el-tag>
+                <span v-if="!row.appliedChannels || row.appliedChannels.length === 0">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="260" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  type="primary"
+                  size="small"
+                  text
+                  @click="openEditDialog(row)"
+                >
+                  编辑
+                </el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  text
+                  @click="deleteParam(row)"
+                >
+                  删除
+                </el-button>
+                <el-button
+                  type="success"
+                  size="small"
+                  text
+                  @click="openMappingDialog(row)"
+                >
+                  默认映射
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+      
+      <el-tab-pane label="默认映射配置">
+        <el-card shadow="hover" class="mapping-config-card">
+          <div class="mapping-header">
+            <div class="mapping-title">
+              <h3>标准参数默认映射关系</h3>
+              <p class="mapping-desc">配置标准参数在各个渠道中的默认映射关系，新建渠道时将使用这些默认映射</p>
+            </div>
+            <div class="mapping-actions">
+              <el-button type="success" size="small" @click="exportMappingConfig">
+                <el-icon><Download /></el-icon>导出配置
+              </el-button>
+              <el-upload
+                :auto-upload="false"
+                :show-file-list="false"
+                accept=".json"
+                @change="importMappingConfig"
+              >
+                <el-button type="primary" size="small">
+                  <el-icon><Upload /></el-icon>导入配置
+                </el-button>
+              </el-upload>
+            </div>
+          </div>
+          
+          <el-table
+            :data="defaultMappings"
+            style="width: 100%"
+            :header-cell-style="{ background: '#f5f7fa' }"
+            border
+          >
+            <el-table-column label="标准参数" width="150">
+              <template #default="{ row }">
+                <el-tag type="info" effect="plain">{{ row.standardParam }}</el-tag>
+              </template>
+            </el-table-column>
+            
+            <el-table-column v-for="channel in channelTypes" :key="channel.value" :label="channel.label" min-width="150">
+              <template #default="{ row }">
+                <div class="mapping-cell">
+                  <el-tag v-if="row.mappings[channel.value]" type="success" effect="light">
+                    {{ getChannelParamLabel(channel.value, row.mappings[channel.value]) }}
+                  </el-tag>
+                  <span v-else class="no-mapping">未映射</span>
+                </div>
+              </template>
+            </el-table-column>
+            
+            <el-table-column label="操作" width="120" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  type="primary"
+                  size="small"
+                  text
+                  @click="openMappingDialog({key: row.standardParam})"
+                >
+                  编辑映射
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          
+          <div class="mapping-tips">
+            <el-alert
+              title="默认映射说明"
+              type="info"
+              :closable="false"
+              show-icon
             >
-              {{ getChannelTypeName(channel) }}
-            </el-tag>
-            <span v-if="!row.appliedChannels || row.appliedChannels.length === 0">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              type="primary"
-              size="small"
-              text
-              @click="openEditDialog(row)"
-            >
-              编辑
-            </el-button>
-            <el-button
-              type="danger"
-              size="small"
-              text
-              @click="deleteParam(row)"
-            >
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+              <template #default>
+                <p>1. 默认映射关系将在创建新渠道时自动应用</p>
+                <p>2. 修改默认映射不会影响已有渠道的映射配置</p>
+                <p>3. 可以通过导出/导入功能备份或迁移配置</p>
+              </template>
+            </el-alert>
+          </div>
+        </el-card>
+      </el-tab-pane>
+    </el-tabs>
     
     <!-- 参数编辑对话框 -->
     <el-dialog
@@ -535,6 +791,55 @@ onMounted(() => {
         </span>
       </template>
     </el-dialog>
+    
+    <!-- 默认映射编辑对话框 -->
+    <el-dialog
+      v-model="mappingDialogVisible"
+      title="编辑默认映射配置"
+      width="700px"
+      destroy-on-close
+    >
+      <div class="mapping-dialog-header">
+        <h3>标准参数: {{ currentMappingConfig.standardParam }}</h3>
+        <p class="mapping-dialog-desc">为该参数配置在各个渠道中的默认映射关系</p>
+      </div>
+      
+      <el-form :model="currentMappingConfig" label-width="120px">
+        <el-form-item 
+          v-for="channel in channelTypes" 
+          :key="channel.value" 
+          :label="channel.label"
+        >
+          <el-select 
+            v-model="currentMappingConfig.mappings[channel.value]" 
+            placeholder="请选择映射参数"
+            style="width: 100%"
+            clearable
+          >
+            <el-option
+              v-for="param in channelSpecificParams[channel.value]"
+              :key="param.key"
+              :label="`${param.label} (${param.key})`"
+              :value="param.key"
+            >
+              <div class="param-option">
+                <span>{{ param.label }} ({{ param.key }})</span>
+                <el-tooltip :content="param.description" placement="right">
+                  <el-icon><InfoFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </el-option>
+          </el-select>
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="mappingDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveMappingConfig">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -580,6 +885,66 @@ onMounted(() => {
   margin-bottom: 5px;
 }
 
+.mapping-config-card {
+  margin-bottom: 20px;
+}
+
+.mapping-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.mapping-title h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.mapping-desc {
+  color: #606266;
+  margin: 0;
+}
+
+.mapping-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.mapping-cell {
+  display: flex;
+  align-items: center;
+}
+
+.no-mapping {
+  color: #909399;
+  font-size: 13px;
+}
+
+.mapping-tips {
+  margin-top: 20px;
+}
+
+.mapping-dialog-header {
+  margin-bottom: 20px;
+}
+
+.mapping-dialog-header h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.mapping-dialog-desc {
+  color: #606266;
+  margin: 0;
+}
+
+.param-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* 响应式调整 */
 @media (max-width: 768px) {
   .action-buttons {
@@ -589,6 +954,14 @@ onMounted(() => {
   
   .filter-select {
     margin-bottom: 10px;
+  }
+  
+  .mapping-header {
+    flex-direction: column;
+  }
+  
+  .mapping-actions {
+    margin-top: 10px;
   }
 }
 </style> 

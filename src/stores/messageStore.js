@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { ElMessage } from 'element-plus'
 
 export const useMessageStore = defineStore('message', () => {
   // 状态
@@ -12,6 +13,7 @@ export const useMessageStore = defineStore('message', () => {
   const loading = ref(false)
   const error = ref(null)
   const unreadCount = ref(0)
+  const defaultParamMappings = ref([])
   const statistics = ref({
     total: 0,
     unread: 0,
@@ -824,7 +826,100 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
-  // 初始化加载所有数据
+  // 加载默认参数映射配置
+  const loadDefaultParamMappings = () => {
+    // 实际项目中应从API获取
+    // 这里使用模拟数据
+    defaultParamMappings.value = [
+      {
+        standardParam: 'recipient',
+        mappings: {
+          email: 'to_email',
+          sms: 'phone_number',
+          wechat: 'open_id',
+          dingtalk: 'user_id',
+          webhook: '',
+          internal: 'user_id'
+        }
+      },
+      {
+        standardParam: 'subject',
+        mappings: {
+          email: 'subject',
+          sms: '',
+          wechat: 'first_data',
+          dingtalk: 'title',
+          webhook: '',
+          internal: 'title'
+        }
+      },
+      {
+        standardParam: 'content',
+        mappings: {
+          email: 'html_body',
+          sms: 'content',
+          wechat: 'remark',
+          dingtalk: 'text',
+          webhook: 'payload',
+          internal: 'content'
+        }
+      },
+      {
+        standardParam: 'attachment',
+        mappings: {
+          email: 'attachments',
+          sms: '',
+          wechat: '',
+          dingtalk: '',
+          webhook: '',
+          internal: ''
+        }
+      },
+      {
+        standardParam: 'importance',
+        mappings: {
+          email: '',
+          sms: '',
+          wechat: '',
+          dingtalk: '',
+          webhook: '',
+          internal: 'type'
+        }
+      },
+      {
+        standardParam: 'template_id',
+        mappings: {
+          email: '',
+          sms: 'template_code',
+          wechat: 'template_id',
+          dingtalk: '',
+          webhook: '',
+          internal: ''
+        }
+      },
+      {
+        standardParam: 'url',
+        mappings: {
+          email: '',
+          sms: '',
+          wechat: 'url',
+          dingtalk: '',
+          webhook: '',
+          internal: 'link'
+        }
+      }
+    ]
+  }
+
+  // 更新默认参数映射配置
+  const updateDefaultParamMappings = (mappings) => {
+    defaultParamMappings.value = mappings
+    
+    // 实际项目中应调用API保存到后端
+    ElMessage.success('默认参数映射配置已更新')
+  }
+  
+  // 初始化数据
   const initializeData = () => {
     loadMessages()
     loadMessageTypes()
@@ -832,18 +927,21 @@ export const useMessageStore = defineStore('message', () => {
     loadSystems()
     loadTemplates()
     loadStatistics()
+    loadDefaultParamMappings()
+    updateUnreadCount()
   }
 
-  return { 
-    messages, 
-    templates, 
-    channels, 
-    systems, 
+  return {
+    messages,
+    templates,
+    channels,
+    systems,
     messageTypes,
-    loading, 
-    error, 
+    loading,
+    error,
     unreadCount,
     statistics,
+    defaultParamMappings,
     loadMessages,
     loadMessageTypes,
     loadChannels,
@@ -852,7 +950,10 @@ export const useMessageStore = defineStore('message', () => {
     loadStatistics,
     markAsRead,
     markAllAsRead,
+    updateUnreadCount,
     getMessagesByType,
-    initializeData
+    initializeData,
+    loadDefaultParamMappings,
+    updateDefaultParamMappings
   }
 }) 

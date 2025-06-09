@@ -499,46 +499,70 @@ const initParamMapping = () => {
 
 // 获取默认参数映射
 const getDefaultParamMapping = (channelType) => {
-  switch (channelType) {
-    case 'email':
-      return {
-        recipient: 'to_email',
-        subject: 'subject',
-        content: 'html_body',
-        attachment: 'attachments'
-      }
-    case 'sms':
-      return {
-        recipient: 'phone_number',
-        content: 'content',
-        template_id: 'template_code'
-      }
-    case 'wechat':
-      return {
-        recipient: 'open_id',
-        subject: 'first_data',
-        content: 'remark',
-        url: 'url'
-      }
-    case 'dingtalk':
-      return {
-        recipient: 'user_id',
-        subject: 'title',
-        content: 'text'
-      }
-    case 'webhook':
-      return {
-        content: 'payload'
-      }
-    case 'internal':
-      return {
-        recipient: 'user_id',
-        subject: 'title',
-        content: 'content'
-      }
-    default:
-      return {}
+  // 从 messageStore 中获取全局默认映射配置
+  // 实际项目中应该从后端API获取
+  const defaultMappings = messageStore.defaultParamMappings || []
+  
+  // 构建映射对象
+  const mapping = {}
+  
+  // 遍历默认映射配置，找到对应渠道类型的映射
+  defaultMappings.forEach(config => {
+    const standardParam = config.standardParam
+    const targetParam = config.mappings?.[channelType]
+    
+    // 只添加有效的映射（目标参数不为空）
+    if (standardParam && targetParam) {
+      mapping[standardParam] = targetParam
+    }
+  })
+  
+  // 如果没有找到配置或配置为空，使用硬编码的默认值作为备选
+  if (Object.keys(mapping).length === 0) {
+    switch (channelType) {
+      case 'email':
+        return {
+          recipient: 'to_email',
+          subject: 'subject',
+          content: 'html_body',
+          attachment: 'attachments'
+        }
+      case 'sms':
+        return {
+          recipient: 'phone_number',
+          content: 'content',
+          template_id: 'template_code'
+        }
+      case 'wechat':
+        return {
+          recipient: 'open_id',
+          subject: 'first_data',
+          content: 'remark',
+          url: 'url'
+        }
+      case 'dingtalk':
+        return {
+          recipient: 'user_id',
+          subject: 'title',
+          content: 'text'
+        }
+      case 'webhook':
+        return {
+          content: 'payload'
+        }
+      case 'internal':
+        return {
+          recipient: 'user_id',
+          subject: 'title',
+          content: 'content',
+          url: 'link'
+        }
+      default:
+        return {}
+    }
   }
+  
+  return mapping
 }
 
 // 初始化渠道配置
@@ -639,6 +663,11 @@ onMounted(() => {
   // 确保数据已加载
   if (messageStore.channels.length === 0) {
     loadChannels()
+  }
+  
+  // 加载默认参数映射配置
+  if (!messageStore.defaultParamMappings) {
+    messageStore.loadDefaultParamMappings()
   }
 })
 </script>
