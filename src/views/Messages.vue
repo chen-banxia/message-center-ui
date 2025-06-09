@@ -175,6 +175,9 @@ onMounted(() => {
           <el-button type="success" @click="markSelectedAsRead" :disabled="selectedMessages.length === 0">
             标记已读
           </el-button>
+          <el-button type="info" @click="$router.push('/scheduled-messages')">
+            定时与批量发送
+          </el-button>
         </el-col>
       </el-row>
     </el-card>

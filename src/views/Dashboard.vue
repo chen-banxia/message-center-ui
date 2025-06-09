@@ -2,7 +2,9 @@
 import { ref, onMounted, reactive, onUnmounted } from 'vue'
 import { useMessageStore, useMessageTypeStore, useTemplateStore, useChannelStore, useSystemStore, useStatisticsStore } from '@/stores'
 import * as echarts from 'echarts'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const messageStore = useMessageStore()
 const messageTypeStore = useMessageTypeStore()
 const templateStore = useTemplateStore()
@@ -199,6 +201,26 @@ const activities = ref([
   }
 ])
 
+// 异常预警
+const anomalyAlerts = ref([])
+const activeAnomalyCount = ref(0)
+
+// 跳转到异常预警页面
+const goToAnomalyAlerts = () => {
+  router.push('/alerts')
+}
+
+// 加载异常预警数据
+const loadAnomalyAlerts = async () => {
+  try {
+    await statisticsStore.loadStatistics()
+    anomalyAlerts.value = statisticsStore.getAnomalyAlerts()
+    activeAnomalyCount.value = anomalyAlerts.value.filter(alert => alert.status === 'active').length
+  } catch (error) {
+    console.error('加载异常预警数据失败:', error)
+  }
+}
+
 onMounted(() => {
   try {
     console.log('Dashboard mounted, 正在加载数据...')
@@ -219,6 +241,9 @@ onMounted(() => {
     // 加载统计数据
     loadStats()
     console.log('统计数据已加载:', stats)
+    
+    // 加载异常预警数据
+    loadAnomalyAlerts()
     
     // 初始化图表
     setTimeout(() => {
@@ -318,6 +343,39 @@ onUnmounted(() => {
           <div class="stat-info">
             <div class="stat-title">接入系统</div>
             <div class="stat-value">{{ stats.systemCount }}</div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+    
+    <!-- 异常预警卡片 -->
+    <el-row :gutter="20" v-if="activeAnomalyCount > 0" class="alert-row">
+      <el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
+        <el-card shadow="hover" class="alert-card">
+          <div class="alert-header">
+            <div class="alert-title">
+              <el-icon><Warning /></el-icon>
+              <span>系统异常预警</span>
+            </div>
+            <el-button type="primary" link @click="goToAnomalyAlerts">查看详情</el-button>
+          </div>
+          <div class="alert-content">
+            <div class="alert-count">
+              <span class="count-value">{{ activeAnomalyCount }}</span>
+              <span class="count-text">个活跃预警</span>
+            </div>
+            <div class="alert-list">
+              <div v-for="alert in anomalyAlerts.slice(0, 3)" :key="alert.id" class="alert-item" v-if="alert.status === 'active'">
+                <el-tag 
+                  :type="alert.level === 'high' ? 'danger' : alert.level === 'medium' ? 'warning' : 'info'" 
+                  size="small" 
+                  class="alert-tag"
+                >
+                  {{ alert.level === 'high' ? '高' : alert.level === 'medium' ? '中' : '低' }}
+                </el-tag>
+                <span class="alert-item-title">{{ alert.title }}</span>
+              </div>
+            </div>
           </div>
         </el-card>
       </el-col>
@@ -486,5 +544,80 @@ onUnmounted(() => {
   .chart-card {
     height: 300px;
   }
+}
+
+.alert-row {
+  margin-bottom: 20px;
+}
+
+.alert-card {
+  background-color: #FEF0F0;
+  border-color: #FCDEE0;
+}
+
+.alert-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.alert-title {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #F56C6C;
+}
+
+.alert-title .el-icon {
+  margin-right: 8px;
+  font-size: 20px;
+}
+
+.alert-content {
+  display: flex;
+  align-items: center;
+}
+
+.alert-count {
+  margin-right: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  background-color: rgba(245, 108, 108, 0.1);
+  border-radius: 4px;
+}
+
+.count-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #F56C6C;
+}
+
+.count-text {
+  font-size: 14px;
+  color: #606266;
+}
+
+.alert-list {
+  flex: 1;
+}
+
+.alert-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.alert-tag {
+  margin-right: 8px;
+}
+
+.alert-item-title {
+  font-size: 14px;
+  color: #606266;
 }
 </style> 

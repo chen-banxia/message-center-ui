@@ -12,6 +12,7 @@ import Settings from '../views/Settings.vue'
 import ParamConfig from '../views/ParamConfig.vue'
 import Login from '../views/Login.vue'
 import NotFound from '../views/NotFound.vue'
+import ScheduledMessages from '../views/ScheduledMessages.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -42,6 +43,12 @@ const router = createRouter({
           name: 'message-detail',
           component: MessageDetail,
           meta: { title: '消息详情', hidden: true }
+        },
+        {
+          path: 'scheduled-messages',
+          name: 'scheduled-messages',
+          component: ScheduledMessages,
+          meta: { title: '定时与批量发送', icon: 'Timer' }
         },
         {
           path: 'templates',
@@ -78,6 +85,18 @@ const router = createRouter({
           name: 'message-types',
           component: MessageTypes,
           meta: { title: '消息类型', icon: 'Collection' }
+        },
+        {
+          path: 'alerts',
+          name: 'anomaly-alerts',
+          component: () => import('../views/AnomalyAlerts.vue'),
+          meta: { title: '异常预警', icon: 'Warning' }
+        },
+        {
+          path: 'statistics',
+          name: 'statistics',
+          component: () => import('../views/Statistics.vue'),
+          meta: { title: '统计分析', icon: 'DataAnalysis' }
         },
         {
           path: 'settings',
