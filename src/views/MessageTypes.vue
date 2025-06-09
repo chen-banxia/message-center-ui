@@ -32,6 +32,13 @@ const searchKeyword = ref('')
 // 状态筛选
 const statusFilter = ref('all')
 
+// 分页相关变量
+const pagination = ref({
+  currentPage: 1,
+  pageSize: 10,
+  total: 0
+})
+
 // 颜色选项
 const colorOptions = [
   { color: '#409EFF', name: '蓝色' },
@@ -76,7 +83,13 @@ const filteredTypes = computed(() => {
     result = result.filter(type => type.status === statusFilter.value)
   }
   
-  return result
+  // 更新总数
+  pagination.value.total = result.length
+  
+  // 分页处理
+  const start = (pagination.value.currentPage - 1) * pagination.value.pageSize
+  const end = start + pagination.value.pageSize
+  return result.slice(start, end)
 })
 
 // 加载消息类型列表
@@ -148,6 +161,17 @@ const toggleTypeStatus = (type) => {
   const newStatus = type.status === 'enabled' ? 'disabled' : 'enabled'
   messageTypeStore.updateMessageType(type.id, { status: newStatus })
   ElMessage.success(`消息类型已${newStatus === 'enabled' ? '启用' : '禁用'}`)
+}
+
+// 处理分页变化
+const handleCurrentChange = (val) => {
+  pagination.value.currentPage = val
+}
+
+// 处理每页数量变化
+const handleSizeChange = (val) => {
+  pagination.value.pageSize = val
+  pagination.value.currentPage = 1
 }
 
 // 获取渠道名称
@@ -267,6 +291,19 @@ onMounted(() => {
           </template>
         </el-table-column>
       </el-table>
+      
+      <!-- 分页组件 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="pagination.currentPage"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
     
     <!-- 类型编辑对话框 -->
@@ -442,6 +479,12 @@ onMounted(() => {
   border-radius: 2px;
 }
 
+.pagination-container {
+  padding: 15px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* 响应式调整 */
 @media (max-width: 768px) {
   .action-buttons {
@@ -451,6 +494,10 @@ onMounted(() => {
   
   .filter-select {
     margin-bottom: 10px;
+  }
+  
+  .pagination-container {
+    justify-content: center;
   }
 }
 </style> 

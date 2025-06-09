@@ -105,6 +105,13 @@ const statusFilter = ref('all')
 // 类型筛选
 const typeFilter = ref('all')
 
+// 分页相关变量
+const pagination = ref({
+  currentPage: 1,
+  pageSize: 10,
+  total: 0
+})
+
 // 状态选项
 const statusOptions = [
   { value: 'draft', label: '草稿' },
@@ -173,9 +180,21 @@ const filteredTemplates = computed(() => {
   });
 });
 
+// 分页后的模板列表
+const paginatedTemplates = computed(() => {
+  // 更新总数
+  pagination.value.total = filteredTemplates.value.length;
+  
+  // 分页处理
+  const start = (pagination.value.currentPage - 1) * pagination.value.pageSize;
+  const end = start + pagination.value.pageSize;
+  return filteredTemplates.value.slice(start, end);
+});
+
 // 搜索模板
 function searchTemplates() {
-  // 直接使用计算属性过滤，无需额外操作
+  // 重置分页到第一页
+  pagination.value.currentPage = 1;
 }
 
 // 重置搜索条件
@@ -186,6 +205,19 @@ function resetSearch() {
     type: '',
     status: ''
   };
+  // 重置分页到第一页
+  pagination.value.currentPage = 1;
+}
+
+// 处理分页变化
+const handleCurrentChange = (val) => {
+  pagination.value.currentPage = val;
+}
+
+// 处理每页数量变化
+const handleSizeChange = (val) => {
+  pagination.value.pageSize = val;
+  pagination.value.currentPage = 1;
 }
 
 // 删除模板
@@ -719,7 +751,7 @@ onMounted(() => {
       </div>
       
       <el-table
-        :data="filteredTemplates"
+        :data="paginatedTemplates"
         style="width: 100%"
         v-loading="loading"
         border
@@ -761,6 +793,19 @@ onMounted(() => {
           </template>
         </el-table-column>
       </el-table>
+      
+      <!-- 分页组件 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="pagination.currentPage"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
     
     <!-- 模板编辑对话框 -->
@@ -1244,5 +1289,12 @@ onMounted(() => {
   color: #909399;
   margin-top: 5px;
   line-height: 1.4;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding: 0 15px 15px;
 }
 </style> 

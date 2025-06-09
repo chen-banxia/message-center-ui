@@ -31,6 +31,13 @@ const searchKeyword = ref('')
 // 状态筛选
 const statusFilter = ref('all')
 
+// 分页相关变量
+const pagination = ref({
+  currentPage: 1,
+  pageSize: 10,
+  total: 0
+})
+
 // 筛选后的系统列表
 const filteredSystems = computed(() => {
   let result = [...systems.value]
@@ -49,8 +56,30 @@ const filteredSystems = computed(() => {
     result = result.filter(system => system.status === statusFilter.value)
   }
   
+  // 更新总数
+  pagination.value.total = result.length
+  
   return result
 })
+
+// 分页后的系统列表
+const paginatedSystems = computed(() => {
+  // 分页处理
+  const start = (pagination.value.currentPage - 1) * pagination.value.pageSize
+  const end = start + pagination.value.pageSize
+  return filteredSystems.value.slice(start, end)
+})
+
+// 处理分页变化
+const handleCurrentChange = (val) => {
+  pagination.value.currentPage = val
+}
+
+// 处理每页数量变化
+const handleSizeChange = (val) => {
+  pagination.value.pageSize = val
+  pagination.value.currentPage = 1
+}
 
 // 加载系统列表
 const loadSystems = () => {
@@ -190,7 +219,7 @@ onMounted(() => {
     <el-card shadow="hover" class="system-list-card">
       <el-table
         v-loading="loading"
-        :data="filteredSystems"
+        :data="paginatedSystems"
         style="width: 100%"
         :header-cell-style="{ background: '#f5f7fa' }"
       >
@@ -260,6 +289,19 @@ onMounted(() => {
           </template>
         </el-table-column>
       </el-table>
+      
+      <!-- 分页组件 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="pagination.currentPage"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
     
     <!-- 系统编辑对话框 -->
@@ -385,7 +427,16 @@ onMounted(() => {
   gap: 10px;
 }
 
-/* 响应式调整 */
+.api-key-input .el-button {
+  width: 100%;
+}
+
+.pagination-container {
+  padding: 15px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 768px) {
   .action-buttons {
     justify-content: flex-start;
@@ -403,6 +454,10 @@ onMounted(() => {
   
   .api-key-input .el-button {
     width: 100%;
+  }
+  
+  .pagination-container {
+    justify-content: center;
   }
 }
 </style> 
