@@ -13,6 +13,7 @@ import ParamConfig from '../views/ParamConfig.vue'
 import Login from '../views/Login.vue'
 import NotFound from '../views/NotFound.vue'
 import ScheduledMessages from '../views/ScheduledMessages.vue'
+import MessageRecords from '../views/MessageRecords.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -49,6 +50,12 @@ const router = createRouter({
           name: 'scheduled-messages',
           component: ScheduledMessages,
           meta: { title: '定时与批量发送', icon: 'Timer' }
+        },
+        {
+          path: 'message-records',
+          name: 'message-records',
+          component: MessageRecords,
+          meta: { title: '发送记录', icon: 'Tickets' }
         },
         {
           path: 'templates',

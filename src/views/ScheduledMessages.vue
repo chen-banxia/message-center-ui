@@ -454,6 +454,9 @@ const resetSearch = () => {
           <el-button type="danger" @click="batchDelete" :disabled="selectedMessages.length === 0">
             <el-icon><Delete /></el-icon> 批量删除
           </el-button>
+          <el-button type="warning" @click="$router.push('/message-records')">
+            <el-icon><Tickets /></el-icon> 查看发送记录
+          </el-button>
         </el-col>
       </el-row>
     </el-card>

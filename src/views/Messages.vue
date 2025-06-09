@@ -178,6 +178,9 @@ onMounted(() => {
           <el-button type="info" @click="$router.push('/scheduled-messages')">
             定时与批量发送
           </el-button>
+          <el-button type="warning" @click="$router.push('/message-records')">
+            发送记录
+          </el-button>
         </el-col>
       </el-row>
     </el-card>
