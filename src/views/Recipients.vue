@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 
 // 接收者列表
 const recipients = ref([
@@ -14,7 +15,13 @@ const recipients = ref([
     dingtalkId: 'dt_001',
     department: '技术部',
     status: 'enabled',
-    createTime: '2023-05-10 10:00:00'
+    createTime: '2023-05-10 10:00:00',
+    subscriptions: [1, 3],
+    blockedTypes: [2],
+    subscriptionSettings: [
+      { typeId: 1, channels: ['email', 'sms', 'wechat'] },
+      { typeId: 3, channels: ['email', 'app'] }
+    ]
   },
   {
     id: 2,
@@ -27,7 +34,13 @@ const recipients = ref([
     dingtalkId: 'dt_002',
     department: '产品部',
     status: 'enabled',
-    createTime: '2023-05-11 11:00:00'
+    createTime: '2023-05-11 11:00:00',
+    subscriptions: [1, 2],
+    blockedTypes: [],
+    subscriptionSettings: [
+      { typeId: 1, channels: ['email'] },
+      { typeId: 2, channels: ['email', 'sms'] }
+    ]
   },
   {
     id: 3,
@@ -40,7 +53,10 @@ const recipients = ref([
     dingtalkId: 'dt_003',
     department: '市场部',
     status: 'disabled',
-    createTime: '2023-05-12 12:00:00'
+    createTime: '2023-05-12 12:00:00',
+    subscriptions: [],
+    blockedTypes: [1, 2, 3],
+    subscriptionSettings: []
   },
   {
     id: 4,
@@ -48,7 +64,13 @@ const recipients = ref([
     name: '技术团队',
     members: [1, 2],
     status: 'enabled',
-    createTime: '2023-05-13 13:00:00'
+    createTime: '2023-05-13 13:00:00',
+    subscriptions: [1, 2],
+    blockedTypes: [],
+    subscriptionSettings: [
+      { typeId: 1, channels: ['email'] },
+      { typeId: 2, channels: ['email'] }
+    ]
   },
   {
     id: 5,
@@ -56,8 +78,31 @@ const recipients = ref([
     name: '产品团队',
     members: [2, 3],
     status: 'enabled',
-    createTime: '2023-05-14 14:00:00'
+    createTime: '2023-05-14 14:00:00',
+    subscriptions: [3],
+    blockedTypes: [1],
+    subscriptionSettings: [
+      { typeId: 3, channels: ['email', 'dingtalk'] }
+    ]
   }
+])
+
+// 消息类型列表
+const messageTypes = ref([
+  { id: 1, name: '系统通知', icon: 'Bell', color: '#409EFF' },
+  { id: 2, name: '告警消息', icon: 'Warning', color: '#F56C6C' },
+  { id: 3, name: '营销消息', icon: 'Promotion', color: '#67C23A' },
+  { id: 4, name: '任务提醒', icon: 'Calendar', color: '#E6A23C' },
+  { id: 5, name: '账户安全', icon: 'Lock', color: '#909399' }
+])
+
+// 通知渠道列表
+const notificationChannels = ref([
+  { id: 'email', name: '邮件', icon: 'Message' },
+  { id: 'sms', name: '短信', icon: 'ChatDotRound' },
+  { id: 'app', name: '站内信', icon: 'Bell' },
+  { id: 'wechat', name: '微信', icon: 'ChatLineRound' },
+  { id: 'dingtalk', name: '钉钉', icon: 'PhoneFilled' }
 ])
 
 // 部门列表
@@ -85,7 +130,10 @@ const currentRecipient = ref({
   dingtalkId: '',
   department: '',
   status: 'enabled',
-  members: []
+  members: [],
+  subscriptions: [],
+  blockedTypes: [],
+  subscriptionSettings: []
 })
 // 对话框模式：新增/编辑
 const dialogMode = ref('add')
@@ -135,6 +183,30 @@ const filteredRecipients = computed(() => {
   return result
 })
 
+// 获取消息类型名称
+const getMessageTypeName = (typeId) => {
+  const type = messageTypes.value.find(t => t.id === typeId)
+  return type ? type.name : '未知类型'
+}
+
+// 获取渠道名称
+const getChannelName = (channelId) => {
+  const channel = notificationChannels.value.find(c => c.id === channelId)
+  return channel ? channel.name : '未知渠道'
+}
+
+// 获取类型颜色
+const getMessageTypeColor = (typeId) => {
+  const type = messageTypes.value.find(t => t.id === typeId)
+  return type ? type.color : '#909399'
+}
+
+// 获取类型图标
+const getMessageTypeIcon = (typeId) => {
+  const type = messageTypes.value.find(t => t.id === typeId)
+  return type ? type.icon : 'InfoFilled'
+}
+
 // 加载接收者列表
 const loadRecipients = () => {
   loading.value = true
@@ -159,7 +231,10 @@ const openAddDialog = () => {
     dingtalkId: '',
     department: '',
     status: 'enabled',
-    members: []
+    members: [],
+    subscriptions: [],
+    blockedTypes: [],
+    subscriptionSettings: []
   }
   activeTab.value = 'basic'
   recipientDialogVisible.value = true
@@ -256,6 +331,92 @@ const handleRecipientTypeChange = () => {
   }
 }
 
+// 添加订阅
+const addSubscription = (typeId) => {
+  if (!currentRecipient.value.subscriptions.includes(typeId)) {
+    // 添加到订阅列表
+    currentRecipient.value.subscriptions.push(typeId)
+    
+    // 从屏蔽列表中移除
+    currentRecipient.value.blockedTypes = currentRecipient.value.blockedTypes.filter(id => id !== typeId)
+    
+    // 添加默认设置
+    if (!currentRecipient.value.subscriptionSettings.find(s => s.typeId === typeId)) {
+      currentRecipient.value.subscriptionSettings.push({
+        typeId,
+        channels: ['email'] // 默认使用邮件渠道
+      })
+    }
+  }
+}
+
+// 添加屏蔽
+const addBlockedType = (typeId) => {
+  if (!currentRecipient.value.blockedTypes.includes(typeId)) {
+    // 添加到屏蔽列表
+    currentRecipient.value.blockedTypes.push(typeId)
+    
+    // 从订阅列表中移除
+    currentRecipient.value.subscriptions = currentRecipient.value.subscriptions.filter(id => id !== typeId)
+    
+    // 移除相关订阅设置
+    currentRecipient.value.subscriptionSettings = currentRecipient.value.subscriptionSettings.filter(s => s.typeId !== typeId)
+  }
+}
+
+// 移除订阅
+const removeSubscription = (typeId) => {
+  currentRecipient.value.subscriptions = currentRecipient.value.subscriptions.filter(id => id !== typeId)
+  currentRecipient.value.subscriptionSettings = currentRecipient.value.subscriptionSettings.filter(s => s.typeId !== typeId)
+}
+
+// 移除屏蔽
+const removeBlockedType = (typeId) => {
+  currentRecipient.value.blockedTypes = currentRecipient.value.blockedTypes.filter(id => id !== typeId)
+}
+
+// 更新订阅渠道
+const updateSubscriptionChannels = (typeId, channels) => {
+  const index = currentRecipient.value.subscriptionSettings.findIndex(s => s.typeId === typeId)
+  if (index !== -1) {
+    currentRecipient.value.subscriptionSettings[index].channels = [...channels]
+  } else if (channels.length > 0) {
+    currentRecipient.value.subscriptionSettings.push({
+      typeId,
+      channels: [...channels]
+    })
+  }
+}
+
+// 检查类型是否已订阅
+const isTypeSubscribed = (typeId) => {
+  return currentRecipient.value.subscriptions.includes(typeId)
+}
+
+// 检查类型是否已屏蔽
+const isTypeBlocked = (typeId) => {
+  return currentRecipient.value.blockedTypes.includes(typeId)
+}
+
+// 获取订阅类型的渠道设置
+const getTypeChannels = (typeId) => {
+  const setting = currentRecipient.value.subscriptionSettings.find(s => s.typeId === typeId)
+  return setting ? setting.channels : []
+}
+
+// 同步企业通讯录
+const syncFromDirectory = () => {
+  ElMessage.info('正在从企业通讯录同步接收者信息...')
+  loading.value = true
+  
+  // 模拟同步过程
+  setTimeout(() => {
+    // 实际项目中应调用API同步数据
+    ElMessage.success('同步完成，新增3个接收者')
+    loading.value = false
+  }, 2000)
+}
+
 onMounted(() => {
   loadRecipients()
 })
@@ -299,6 +460,9 @@ onMounted(() => {
           </el-select>
         </el-col>
         <el-col :xs="24" :sm="12" :md="6" :lg="10" :xl="10" class="action-buttons">
+          <el-button type="success" @click="syncFromDirectory" :loading="loading">
+            <el-icon><RefreshRight /></el-icon>同步通讯录
+          </el-button>
           <el-button type="primary" @click="openAddDialog">
             <el-icon><Plus /></el-icon>新增接收者
           </el-button>
@@ -345,6 +509,55 @@ onMounted(() => {
         <el-table-column prop="department" label="部门" width="120">
           <template #default="{ row }">
             {{ row.type === 'personal' ? row.department : '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="订阅/屏蔽" width="180">
+          <template #default="{ row }">
+            <div class="subscription-preview">
+              <div v-if="row.subscriptions && row.subscriptions.length > 0">
+                <span class="subscription-label">订阅:</span>
+                <el-tag 
+                  v-for="typeId in row.subscriptions.slice(0, 2)" 
+                  :key="`sub-${typeId}`"
+                  size="small"
+                  effect="plain"
+                  :style="{ color: getMessageTypeColor(typeId), borderColor: getMessageTypeColor(typeId) }"
+                  class="type-tag"
+                >
+                  {{ getMessageTypeName(typeId) }}
+                </el-tag>
+                <el-tag 
+                  v-if="row.subscriptions.length > 2" 
+                  size="small" 
+                  effect="plain"
+                  class="type-tag"
+                >
+                  +{{ row.subscriptions.length - 2 }}
+                </el-tag>
+              </div>
+              <div v-if="row.blockedTypes && row.blockedTypes.length > 0">
+                <span class="subscription-label">屏蔽:</span>
+                <el-tag 
+                  v-for="typeId in row.blockedTypes.slice(0, 2)" 
+                  :key="`block-${typeId}`"
+                  size="small"
+                  effect="plain"
+                  type="info"
+                  class="type-tag"
+                >
+                  {{ getMessageTypeName(typeId) }}
+                </el-tag>
+                <el-tag 
+                  v-if="row.blockedTypes.length > 2" 
+                  size="small" 
+                  effect="plain"
+                  type="info"
+                  class="type-tag"
+                >
+                  +{{ row.blockedTypes.length - 2 }}
+                </el-tag>
+              </div>
+            </div>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -506,13 +719,138 @@ onMounted(() => {
           </el-form>
         </el-tab-pane>
         
-        <el-tab-pane label="订阅设置" name="subscription" :disabled="dialogMode === 'add'">
-          <el-empty description="暂无订阅设置，请先保存基本信息" v-if="dialogMode === 'add'" />
-          <div v-else class="subscription-settings">
+        <el-tab-pane label="订阅设置" name="subscription">
+          <div class="subscription-settings">
             <p class="subscription-tip">在这里可以设置接收者订阅的消息类型和接收渠道</p>
             
-            <!-- 订阅设置表单将在实际项目中实现 -->
-            <el-empty description="订阅设置功能开发中..." />
+            <el-divider content-position="left">消息订阅</el-divider>
+            
+            <el-row :gutter="20" class="subscription-row">
+              <el-col :span="24">
+                <div class="message-types-container">
+                  <div 
+                    v-for="type in messageTypes" 
+                    :key="type.id"
+                    class="message-type-card"
+                    :class="{
+                      'type-subscribed': isTypeSubscribed(type.id),
+                      'type-blocked': isTypeBlocked(type.id)
+                    }"
+                  >
+                    <div class="type-header" :style="{ backgroundColor: isTypeSubscribed(type.id) ? type.color : '#f0f0f0' }">
+                      <el-icon><component :is="type.icon" /></el-icon>
+                      <span>{{ type.name }}</span>
+                    </div>
+                    <div class="type-actions">
+                      <el-radio-group 
+                        :model-value="isTypeSubscribed(type.id) ? 'subscribe' : isTypeBlocked(type.id) ? 'block' : 'neutral'"
+                        @change="(val) => {
+                          if (val === 'subscribe') {
+                            addSubscription(type.id);
+                          } else if (val === 'block') {
+                            addBlockedType(type.id);
+                          } else {
+                            removeSubscription(type.id);
+                            removeBlockedType(type.id);
+                          }
+                        }"
+                      >
+                        <el-radio label="subscribe">订阅</el-radio>
+                        <el-radio label="neutral">无设置</el-radio>
+                        <el-radio label="block">屏蔽</el-radio>
+                      </el-radio-group>
+                    </div>
+                    <div class="type-channels" v-if="isTypeSubscribed(type.id)">
+                      <div class="channels-title">接收渠道：</div>
+                      <el-checkbox-group 
+                        :model-value="getTypeChannels(type.id)"
+                        @update:model-value="(val) => updateSubscriptionChannels(type.id, val)"
+                      >
+                        <el-checkbox 
+                          v-for="channel in notificationChannels" 
+                          :key="channel.id" 
+                          :label="channel.id"
+                        >
+                          <el-icon><component :is="channel.icon" /></el-icon>
+                          {{ channel.name }}
+                        </el-checkbox>
+                      </el-checkbox-group>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+            
+            <el-divider content-position="left">订阅摘要</el-divider>
+            
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <h4>已订阅消息类型</h4>
+                <el-empty description="暂无订阅类型" v-if="currentRecipient.subscriptions.length === 0" />
+                <el-table v-else :data="currentRecipient.subscriptions.map(id => ({
+                  id,
+                  name: getMessageTypeName(id),
+                  color: getMessageTypeColor(id),
+                  icon: getMessageTypeIcon(id),
+                  channels: getTypeChannels(id)
+                }))" style="width: 100%">
+                  <el-table-column prop="name" label="消息类型">
+                    <template #default="{ row }">
+                      <div class="type-name-cell">
+                        <el-icon><component :is="row.icon" /></el-icon>
+                        <span>{{ row.name }}</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="接收渠道">
+                    <template #default="{ row }">
+                      <el-tag 
+                        v-for="channelId in row.channels" 
+                        :key="channelId"
+                        type="success"
+                        effect="plain"
+                        size="small"
+                        class="channel-tag"
+                      >
+                        {{ getChannelName(channelId) }}
+                      </el-tag>
+                      <span v-if="row.channels.length === 0">无</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-col>
+              <el-col :span="12">
+                <h4>已屏蔽消息类型</h4>
+                <el-empty description="暂无屏蔽类型" v-if="currentRecipient.blockedTypes.length === 0" />
+                <el-table v-else :data="currentRecipient.blockedTypes.map(id => ({
+                  id,
+                  name: getMessageTypeName(id),
+                  color: getMessageTypeColor(id),
+                  icon: getMessageTypeIcon(id)
+                }))" style="width: 100%">
+                  <el-table-column prop="name" label="消息类型">
+                    <template #default="{ row }">
+                      <div class="type-name-cell">
+                        <el-icon><component :is="row.icon" /></el-icon>
+                        <span>{{ row.name }}</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="120">
+                    <template #default="{ row }">
+                      <el-button 
+                        type="danger" 
+                        size="small"
+                        text
+                        @click="removeBlockedType(row.id)"
+                      >
+                        移除屏蔽
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-col>
+            </el-row>
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -553,6 +891,7 @@ onMounted(() => {
 .action-buttons {
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
   margin-top: 10px;
 }
 
@@ -597,6 +936,89 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.subscription-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.subscription-label {
+  color: #606266;
+  margin-right: 5px;
+}
+
+.type-tag {
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+.channel-tag {
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+.message-types-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.message-type-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.message-type-card.type-subscribed {
+  border-color: #67c23a;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.message-type-card.type-blocked {
+  border-color: #909399;
+  background-color: #f8f8f8;
+}
+
+.type-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  background-color: #f0f0f0;
+  color: #fff;
+  font-weight: bold;
+}
+
+.type-header .el-icon {
+  font-size: 18px;
+}
+
+.type-actions {
+  padding: 15px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.type-channels {
+  padding: 15px;
+}
+
+.channels-title {
+  margin-bottom: 10px;
+  color: #606266;
+}
+
+.type-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.type-name-cell .el-icon {
+  font-size: 16px;
+}
+
 /* 响应式调整 */
 @media (max-width: 768px) {
   .action-buttons {
@@ -606,6 +1028,10 @@ onMounted(() => {
   
   .filter-select {
     margin-bottom: 10px;
+  }
+  
+  .message-types-container {
+    grid-template-columns: 1fr;
   }
 }
 </style> 

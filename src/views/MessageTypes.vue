@@ -16,7 +16,6 @@ const currentType = ref({
   id: null,
   name: '',
   description: '',
-  priority: 1,
   defaultChannels: [],
   defaultTemplate: null,
   status: 'enabled',
@@ -96,7 +95,6 @@ const openAddDialog = () => {
     id: null,
     name: '',
     description: '',
-    priority: 1,
     defaultChannels: [],
     defaultTemplate: null,
     status: 'enabled',
@@ -248,11 +246,6 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" />
-        <el-table-column label="优先级" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag type="info" effect="plain">{{ row.priority }}</el-tag>
-          </template>
-        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 'enabled' ? 'success' : 'info'" effect="light">
@@ -313,12 +306,7 @@ onMounted(() => {
         </el-form-item>
         
         <el-row :gutter="20">
-          <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
-            <el-form-item label="优先级">
-              <el-input-number v-model="currentType.priority" :min="1" :max="100" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
+          <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
             <el-form-item label="图标">
               <el-select v-model="currentType.icon" placeholder="请选择图标" style="width: 100%">
                 <el-option
@@ -335,7 +323,7 @@ onMounted(() => {
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
+          <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
             <el-form-item label="颜色">
               <el-select v-model="currentType.color" placeholder="请选择颜色" style="width: 100%">
                 <el-option
