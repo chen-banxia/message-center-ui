@@ -1,5 +1,32 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+
+// 将时间字符串转换为Date对象
+const convertTimeStringToDate = (timeString) => {
+  if (!timeString) return new Date()
+  
+  const [hours, minutes] = timeString.split(':').map(Number)
+  const date = new Date()
+  date.setHours(hours || 0)
+  date.setMinutes(minutes || 0)
+  date.setSeconds(0)
+  return date
+}
+
+// 将Date对象转换为时间字符串 (HH:mm)
+const convertDateToTimeString = (date) => {
+  if (!date) return '00:00'
+  
+  try {
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    return `${hours}:${minutes}`
+  } catch (error) {
+    console.error('时间格式转换错误:', error)
+    return '00:00'
+  }
+}
 
 // 系统配置
 const systemSettings = ref({
@@ -29,8 +56,8 @@ const systemSettings = ref({
     enableEmailNotification: true,
     enableSmsNotification: true,
     dailyLimit: 1000,
-    quietHoursStart: '22:00',
-    quietHoursEnd: '08:00',
+    quietHoursStart: convertTimeStringToDate('22:00'),
+    quietHoursEnd: convertTimeStringToDate('08:00'),
     enableQuietHours: false
   },
   
@@ -40,7 +67,7 @@ const systemSettings = ref({
     cleanupDays: 180,
     backupEnabled: true,
     backupCycle: 'weekly',
-    backupTime: '03:00',
+    backupTime: convertTimeStringToDate('03:00'),
     backupRetention: 12
   },
   
@@ -61,7 +88,22 @@ const activeTab = ref('basic')
 
 // 保存设置
 const saveSettings = (section) => {
+  // 转换回字符串格式用于保存
+  const settingsToSave = JSON.parse(JSON.stringify(systemSettings.value))
+  
+  // 转换通知设置的时间
+  if (section === '通知') {
+    settingsToSave.notification.quietHoursStart = convertDateToTimeString(systemSettings.value.notification.quietHoursStart)
+    settingsToSave.notification.quietHoursEnd = convertDateToTimeString(systemSettings.value.notification.quietHoursEnd)
+  }
+  
+  // 转换存储设置的时间
+  if (section === '存储') {
+    settingsToSave.storage.backupTime = convertDateToTimeString(systemSettings.value.storage.backupTime)
+  }
+  
   // 实际项目中应调用API保存
+  console.log(`保存${section}设置:`, settingsToSave)
   ElMessage.success(`${section}设置保存成功`)
 }
 
@@ -72,6 +114,28 @@ const resetSettings = (section) => {
     cancelButtonText: '取消',
     type: 'warning'
   }).then(() => {
+    // 重置对应部分的设置
+    if (section === '通知') {
+      systemSettings.value.notification = {
+        enableWebNotification: true,
+        enableEmailNotification: true,
+        enableSmsNotification: true,
+        dailyLimit: 1000,
+        quietHoursStart: convertTimeStringToDate('22:00'),
+        quietHoursEnd: convertTimeStringToDate('08:00'),
+        enableQuietHours: false
+      }
+    } else if (section === '存储') {
+      systemSettings.value.storage = {
+        archiveDays: 90,
+        cleanupDays: 180,
+        backupEnabled: true,
+        backupCycle: 'weekly',
+        backupTime: convertTimeStringToDate('03:00'),
+        backupRetention: 12
+      }
+    }
+    
     // 实际项目中应调用API重置
     ElMessage.success(`${section}设置已重置为默认值`)
   }).catch(() => {
@@ -81,7 +145,27 @@ const resetSettings = (section) => {
 
 // 加载设置
 const loadSettings = () => {
-  // 实际项目中应从API获取
+  // 实际项目中应从API获取，这里模拟从API获取数据后的转换
+  // 确保时间字段被转换为Date对象
+  try {
+    // 模拟从后端获取的数据
+    const mockApiData = {
+      notification: {
+        quietHoursStart: '22:00',
+        quietHoursEnd: '08:00'
+      },
+      storage: {
+        backupTime: '03:00'
+      }
+    }
+    
+    // 转换时间字符串为Date对象
+    systemSettings.value.notification.quietHoursStart = convertTimeStringToDate(mockApiData.notification.quietHoursStart)
+    systemSettings.value.notification.quietHoursEnd = convertTimeStringToDate(mockApiData.notification.quietHoursEnd)
+    systemSettings.value.storage.backupTime = convertTimeStringToDate(mockApiData.storage.backupTime)
+  } catch (error) {
+    console.error('加载设置时出错:', error)
+  }
 }
 
 onMounted(() => {

@@ -921,14 +921,75 @@ export const useMessageStore = defineStore('message', () => {
   
   // 初始化数据
   const initializeData = () => {
-    loadMessages()
-    loadMessageTypes()
-    loadChannels()
-    loadSystems()
-    loadTemplates()
-    loadStatistics()
-    loadDefaultParamMappings()
-    updateUnreadCount()
+    try {
+      console.log('开始初始化数据...')
+      
+      loading.value = true
+      error.value = null
+      
+      // 串行加载数据，确保顺序执行
+      const initializeDataSequentially = async () => {
+        try {
+          console.log('加载消息列表...')
+          await new Promise(resolve => {
+            loadMessages()
+            setTimeout(resolve, 300)
+          })
+          
+          console.log('加载消息类型...')
+          await new Promise(resolve => {
+            loadMessageTypes()
+            setTimeout(resolve, 300)
+          })
+          
+          console.log('加载通知渠道...')
+          await new Promise(resolve => {
+            loadChannels()
+            setTimeout(resolve, 300)
+          })
+          
+          console.log('加载系统对接...')
+          await new Promise(resolve => {
+            loadSystems()
+            setTimeout(resolve, 300)
+          })
+          
+          console.log('加载消息模板...')
+          await new Promise(resolve => {
+            loadTemplates()
+            setTimeout(resolve, 300)
+          })
+          
+          console.log('加载统计数据...')
+          await new Promise(resolve => {
+            loadStatistics()
+            setTimeout(resolve, 300)
+          })
+          
+          console.log('加载默认参数映射配置...')
+          await new Promise(resolve => {
+            loadDefaultParamMappings()
+            setTimeout(resolve, 300)
+          })
+          
+          console.log('更新未读消息数量...')
+          updateUnreadCount()
+          
+          loading.value = false
+          console.log('数据初始化完成!')
+        } catch (error) {
+          console.error('数据初始化过程出错:', error)
+          error.value = error.message || '数据加载失败'
+          loading.value = false
+        }
+      }
+      
+      initializeDataSequentially()
+    } catch (error) {
+      console.error('初始化数据出错:', error)
+      error.value = error.message || '初始化数据失败'
+      loading.value = false
+    }
   }
 
   return {

@@ -31,18 +31,29 @@ const loadStats = () => {
 // 初始化消息类型分布图表
 const initMessageTypeChart = () => {
   const chartDom = document.getElementById('messageTypeChart')
+  if (!chartDom) {
+    console.error('找不到图表DOM元素: messageTypeChart')
+    return
+  }
+  
   messageChart = echarts.init(chartDom)
   
   // 统计各类型消息数量
   const typeStats = {}
   messageStore.messages.forEach(msg => {
-    const typeName = msg.type
+    // 检查类型是对象还是字符串
+    const typeName = typeof msg.type === 'object' ? msg.type.name : msg.type
+    const typeColor = typeof msg.type === 'object' ? msg.type.color : null
+    
     if (typeStats[typeName]) {
       typeStats[typeName].value++
     } else {
-      // 获取对应类型的颜色
-      const typeObj = messageStore.messageTypes.find(t => t.name === typeName)
-      const color = typeObj ? typeObj.color : '#409EFF'
+      // 如果消息类型中没有颜色，尝试从messageTypes中获取
+      let color = typeColor
+      if (!color) {
+        const typeObj = messageStore.messageTypes.find(t => t.name === typeName)
+        color = typeObj ? typeObj.color : '#409EFF'
+      }
       
       typeStats[typeName] = {
         value: 1,
@@ -90,6 +101,11 @@ const initMessageTypeChart = () => {
 // 初始化通知渠道状态图表
 const initChannelStatusChart = () => {
   const chartDom = document.getElementById('channelStatusChart')
+  if (!chartDom) {
+    console.error('找不到图表DOM元素: channelStatusChart')
+    return
+  }
+  
   channelChart = echarts.init(chartDom)
   
   // 统计各渠道状态
@@ -179,22 +195,47 @@ const activities = ref([
 ])
 
 onMounted(() => {
-  // 确保数据已加载
-  if (messageStore.messages.length === 0) {
-    messageStore.initData()
-  }
-  
-  // 加载统计数据
-  loadStats()
-  
-  // 初始化图表
-  setTimeout(() => {
-    initMessageTypeChart()
-    initChannelStatusChart()
+  try {
+    console.log('Dashboard mounted, 正在加载数据...')
     
-    // 监听窗口大小变化
-    window.addEventListener('resize', handleResize)
-  }, 500)
+    // 确保数据已加载
+    if (messageStore.messages.length === 0) {
+      console.log('消息数据为空，初始化数据...')
+      messageStore.initializeData()
+    }
+    
+    // 加载统计数据
+    loadStats()
+    console.log('统计数据已加载:', stats)
+    
+    // 初始化图表
+    setTimeout(() => {
+      try {
+        console.log('开始初始化图表...')
+        console.log('消息数据:', messageStore.messages.length)
+        console.log('渠道数据:', messageStore.channels.length)
+        
+        if (messageStore.messages.length > 0) {
+          initMessageTypeChart()
+        } else {
+          console.warn('消息数据为空，跳过消息类型图表初始化')
+        }
+        
+        if (messageStore.channels.length > 0) {
+          initChannelStatusChart()
+        } else {
+          console.warn('渠道数据为空，跳过渠道状态图表初始化')
+        }
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', handleResize)
+      } catch (error) {
+        console.error('图表初始化出错:', error)
+      }
+    }, 1000) // 增加延迟时间，确保DOM已完全渲染
+  } catch (error) {
+    console.error('Dashboard 挂载过程出错:', error)
+  }
 })
 
 // 组件卸载时移除事件监听
