@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useChannelStore } from '@/stores'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const channelStore = useChannelStore()
 
@@ -113,10 +114,18 @@ const channelSpecificParams = {
 const defaultMappings = ref([])
 
 // 监听 channelStore 中的默认参数映射配置变化
-const initDefaultMappings = () => {
+const initDefaultMappings = async () => {
+  // 如果 store 中已有数据，直接使用
   if (channelStore.defaultParamMappings && channelStore.defaultParamMappings.length > 0) {
+    console.log('从 store 中获取默认映射配置:', channelStore.defaultParamMappings)
+    defaultMappings.value = JSON.parse(JSON.stringify(channelStore.defaultParamMappings))
+  } else {
+    // 否则加载数据
+    console.log('加载默认映射配置')
+    await channelStore.loadDefaultParamMappings()
     defaultMappings.value = JSON.parse(JSON.stringify(channelStore.defaultParamMappings))
   }
+  console.log('初始化后的默认映射:', defaultMappings.value)
 }
 
 // 筛选后的参数列表
@@ -416,43 +425,56 @@ const openMappingDialog = (param) => {
 }
 
 // 保存参数映射配置
-const saveMappingConfig = () => {
-  // 清理空的映射关系，只保留有参数映射的渠道
-  const cleanedMappings = {}
-  Object.keys(currentMappingConfig.value.mappings).forEach(channel => {
-    if (currentMappingConfig.value.mappings[channel] && 
-        currentMappingConfig.value.mappings[channel].paramKey) {
-      cleanedMappings[channel] = currentMappingConfig.value.mappings[channel]
+const saveMappingConfig = async () => {
+  try {
+    // 清理空的映射关系，只保留有参数映射的渠道
+    const cleanedMappings = {}
+    Object.keys(currentMappingConfig.value.mappings).forEach(channel => {
+      if (currentMappingConfig.value.mappings[channel] && 
+          currentMappingConfig.value.mappings[channel].paramKey) {
+        cleanedMappings[channel] = currentMappingConfig.value.mappings[channel]
+      }
+    })
+    
+    // 创建要保存的映射配置
+    const configToSave = {
+      standardParam: currentMappingConfig.value.standardParam,
+      mappings: cleanedMappings
     }
-  })
-  
-  // 创建要保存的映射配置
-  const configToSave = {
-    standardParam: currentMappingConfig.value.standardParam,
-    mappings: cleanedMappings
+    
+    // 查找是否已存在该参数的映射配置
+    const index = defaultMappings.value.findIndex(m => 
+      m.standardParam.id === currentMappingConfig.value.standardParam.id
+    )
+    
+    // 创建新的映射数组，避免直接修改引用
+    const updatedMappings = JSON.parse(JSON.stringify(defaultMappings.value))
+    
+    if (index !== -1) {
+      // 更新现有配置
+      updatedMappings[index] = configToSave
+    } else {
+      // 添加新配置
+      updatedMappings.push(configToSave)
+    }
+    
+    // 更新到 channelStore
+    const result = channelStore.updateDefaultParamMappings(updatedMappings)
+    
+    if (result) {
+      // 更新本地数据
+      defaultMappings.value = JSON.parse(JSON.stringify(updatedMappings))
+      
+      ElMessage.success('参数映射配置已保存')
+      mappingDialogVisible.value = false
+      
+      // 打印保存后的映射列表，便于确认
+      console.log('保存后的映射列表:', defaultMappings.value)
+    }
+  } catch (error) {
+    console.error('保存映射配置失败:', error)
+    ElMessage.error('保存映射配置失败')
   }
-  
-  // 查找是否已存在该参数的映射配置
-  const index = defaultMappings.value.findIndex(m => 
-    m.standardParam.id === currentMappingConfig.value.standardParam.id
-  )
-  
-  if (index !== -1) {
-    // 更新现有配置
-    defaultMappings.value[index] = JSON.parse(JSON.stringify(configToSave))
-  } else {
-    // 添加新配置
-    defaultMappings.value.push(JSON.parse(JSON.stringify(configToSave)))
-  }
-  
-  // 更新到 channelStore
-  channelStore.updateDefaultParamMappings(defaultMappings.value)
-  
-  ElMessage.success('参数映射配置已保存')
-  mappingDialogVisible.value = false
-  
-  // 打印保存后的映射列表，便于确认
-  console.log('保存后的映射列表:', defaultMappings.value)
 }
 
 // 获取渠道特定参数选项
@@ -460,17 +482,98 @@ const getChannelParamOptions = (channelType) => {
   return channelSpecificParams[channelType] || []
 }
 
-onMounted(() => {
+// 导出映射配置
+const exportMappingConfig = () => {
+  if (!defaultMappings.value || defaultMappings.value.length === 0) {
+    ElMessage.warning('没有可导出的映射配置')
+    return
+  }
+  
+  try {
+    // 创建 JSON 字符串
+    const configData = JSON.stringify(defaultMappings.value, null, 2)
+    
+    // 创建 Blob 对象
+    const blob = new Blob([configData], { type: 'application/json' })
+    
+    // 创建下载链接
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `param_mappings_${new Date().toISOString().slice(0, 10)}.json`
+    
+    // 触发下载
+    document.body.appendChild(link)
+    link.click()
+    
+    // 清理
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('配置导出成功')
+  } catch (error) {
+    console.error('导出配置失败:', error)
+    ElMessage.error('导出配置失败')
+  }
+}
+
+// 导入映射配置
+const importMappingConfig = (file) => {
+  if (!file || !file.raw) {
+    ElMessage.error('请选择有效的配置文件')
+    return
+  }
+  
+  const reader = new FileReader()
+  
+  reader.onload = async (e) => {
+    try {
+      // 解析 JSON 数据
+      const importedData = JSON.parse(e.target.result)
+      
+      // 验证数据格式
+      if (!Array.isArray(importedData)) {
+        throw new Error('导入的数据格式不正确')
+      }
+      
+      // 检查每个映射配置
+      for (const mapping of importedData) {
+        if (!mapping.standardParam || !mapping.mappings) {
+          throw new Error('映射配置格式不正确')
+        }
+      }
+      
+      // 更新映射配置
+      if (channelStore.updateDefaultParamMappings(importedData)) {
+        defaultMappings.value = JSON.parse(JSON.stringify(importedData))
+        ElMessage.success('配置导入成功')
+      } else {
+        throw new Error('更新配置失败')
+      }
+    } catch (error) {
+      console.error('导入配置失败:', error)
+      ElMessage.error(`导入配置失败: ${error.message}`)
+    }
+  }
+  
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败')
+  }
+  
+  reader.readAsText(file.raw)
+}
+
+onMounted(async () => {
   // 加载标准参数列表
   loadStandardParams()
   
   // 加载默认参数映射配置
-  if (!channelStore.defaultParamMappings) {
-    channelStore.loadDefaultParamMappings().then(() => {
-      initDefaultMappings()
-    })
-  } else {
-    initDefaultMappings()
+  try {
+    await initDefaultMappings()
+    console.log('默认映射配置初始化完成')
+  } catch (error) {
+    console.error('加载默认映射配置失败:', error)
+    ElMessage.error('加载默认映射配置失败')
   }
 })
 </script>
@@ -619,7 +722,12 @@ onMounted(() => {
               <p class="mapping-desc">配置标准参数在各个渠道中的默认映射关系，新建渠道时将使用这些默认映射</p>
             </div>
             <div class="mapping-actions">
-              <el-button type="success" size="small" @click="exportMappingConfig">
+              <el-button 
+                type="success" 
+                size="small" 
+                @click="exportMappingConfig"
+                :disabled="!defaultMappings || defaultMappings.length === 0"
+              >
                 <el-icon><Download /></el-icon>导出配置
               </el-button>
               <el-upload
@@ -636,6 +744,7 @@ onMounted(() => {
           </div>
           
           <el-table
+            v-loading="!defaultMappings || defaultMappings.length === 0"
             :data="defaultMappings"
             style="width: 100%"
             :header-cell-style="{ background: '#f5f7fa' }"
