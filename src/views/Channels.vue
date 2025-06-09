@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useMessageStore } from '../stores/messageStore'
 
 const messageStore = useMessageStore()
@@ -23,7 +23,17 @@ const currentChannel = ref({
   retryInterval: 60,
   rateLimit: 100,
   vendor: '',
-  tags: []
+  tags: [],
+  paramMapping: {},
+  availableTime: {
+    workDays: [1, 2, 3, 4, 5],
+    timeRanges: [{ start: '00:00', end: '23:59' }]
+  },
+  monitorMetrics: {
+    availability: 100,
+    successRate: 100,
+    avgResponseTime: 0
+  }
 })
 // 对话框模式：新增/编辑
 const dialogMode = ref('add')
@@ -50,6 +60,19 @@ const searchKeyword = ref('')
 const typeFilter = ref('all')
 // 状态筛选
 const statusFilter = ref('all')
+// 标签筛选
+const tagFilter = ref([])
+
+// 获取所有标签
+const allTags = computed(() => {
+  const tagSet = new Set()
+  channels.value.forEach(channel => {
+    if (channel.tags && channel.tags.length) {
+      channel.tags.forEach(tag => tagSet.add(tag))
+    }
+  })
+  return Array.from(tagSet)
+})
 
 // 渠道类型选项
 const channelTypeOptions = [
@@ -84,6 +107,14 @@ const filteredChannels = computed(() => {
     result = result.filter(channel => channel.status === statusFilter.value)
   }
   
+  // 按标签筛选
+  if (tagFilter.value.length > 0) {
+    result = result.filter(channel => 
+      channel.tags && 
+      channel.tags.some(tag => tagFilter.value.includes(tag))
+    )
+  }
+  
   return result
 })
 
@@ -112,7 +143,17 @@ const openAddDialog = () => {
     retryInterval: 60,
     rateLimit: 100,
     vendor: '',
-    tags: []
+    tags: [],
+    paramMapping: {},
+    availableTime: {
+      workDays: [1, 2, 3, 4, 5],
+      timeRanges: [{ start: '00:00', end: '23:59' }]
+    },
+    monitorMetrics: {
+      availability: 100,
+      successRate: 100,
+      avgResponseTime: 0
+    }
   }
   channelDialogVisible.value = true
 }
@@ -238,6 +279,45 @@ const getChannelTypeIcon = (type) => {
   }
 }
 
+// 获取成功率颜色
+const getSuccessRateColor = (rate) => {
+  if (rate >= 95) return '#67C23A' // 绿色
+  if (rate >= 80) return '#E6A23C' // 黄色
+  return '#F56C6C' // 红色
+}
+
+// 获取参数显示名称
+const getParamLabel = (paramKey, paramType) => {
+  if (!paramKey) return '-'
+  
+  if (paramType === 'standard') {
+    const param = getParamMappingForm().standardParams.find(p => p.key === paramKey)
+    return param ? param.label : paramKey
+  }
+  
+  const channelParams = {
+    email: getParamMappingForm().channelSpecificParams.email || [],
+    sms: getParamMappingForm().channelSpecificParams.sms || [],
+    wechat: getParamMappingForm().channelSpecificParams.wechat || [],
+    dingtalk: getParamMappingForm().channelSpecificParams.dingtalk || [],
+    webhook: getParamMappingForm().channelSpecificParams.webhook || [],
+    internal: getParamMappingForm().channelSpecificParams.internal || []
+  }
+  
+  const param = channelParams[paramType]?.find(p => p.key === paramKey)
+  return param ? param.label : paramKey
+}
+
+// 获取参数值（用于测试对话框中的参数映射预览）
+const getParamValue = (paramKey, formData) => {
+  switch (paramKey) {
+    case 'recipient': return formData.recipient
+    case 'subject': return formData.subject
+    case 'content': return formData.content
+    default: return '-'
+  }
+}
+
 // 获取渠道配置表单
 const getChannelConfigForm = () => {
   switch (currentChannel.value.type) {
@@ -280,6 +360,123 @@ const getChannelConfigForm = () => {
   }
 }
 
+// 获取参数映射配置表单
+const getParamMappingForm = () => {
+  // 系统标准参数列表
+  const standardParams = [
+    { key: 'recipient', label: '接收者', description: '消息接收者的标识符' },
+    { key: 'subject', label: '主题', description: '消息的主题或标题' },
+    { key: 'content', label: '内容', description: '消息的正文内容' },
+    { key: 'attachment', label: '附件', description: '消息的附件' },
+    { key: 'importance', label: '重要性', description: '消息的重要级别' },
+    { key: 'template_id', label: '模板ID', description: '消息模板的标识符' },
+    { key: 'url', label: '链接', description: '消息中的可点击链接' }
+  ]
+  
+  // 各渠道的特定参数
+  const channelSpecificParams = {
+    email: [
+      { key: 'to_email', label: '收件人邮箱', description: '接收者的邮箱地址' },
+      { key: 'cc', label: '抄送', description: '抄送邮箱列表' },
+      { key: 'bcc', label: '密送', description: '密送邮箱列表' },
+      { key: 'subject', label: '邮件主题', description: '邮件的标题' },
+      { key: 'html_body', label: 'HTML正文', description: '邮件的HTML格式正文' },
+      { key: 'text_body', label: '纯文本正文', description: '邮件的纯文本格式正文' },
+      { key: 'attachments', label: '附件列表', description: '邮件的附件列表' }
+    ],
+    sms: [
+      { key: 'phone_number', label: '手机号码', description: '接收者的手机号码' },
+      { key: 'content', label: '短信内容', description: '短信的文本内容' },
+      { key: 'template_code', label: '模板编码', description: '短信服务商的模板编码' },
+      { key: 'template_param', label: '模板参数', description: '短信模板的参数' }
+    ],
+    wechat: [
+      { key: 'open_id', label: '微信OpenID', description: '接收者的微信OpenID' },
+      { key: 'template_id', label: '模板ID', description: '微信模板消息的模板ID' },
+      { key: 'first_data', label: '首行数据', description: '模板消息的首行数据' },
+      { key: 'remark', label: '备注', description: '模板消息的备注内容' },
+      { key: 'url', label: '跳转链接', description: '点击消息后的跳转链接' },
+      { key: 'mini_program', label: '小程序信息', description: '关联的小程序信息' }
+    ],
+    dingtalk: [
+      { key: 'user_id', label: '用户ID', description: '钉钉用户的唯一标识' },
+      { key: 'msg_type', label: '消息类型', description: '钉钉消息的类型' },
+      { key: 'title', label: '标题', description: '消息的标题' },
+      { key: 'text', label: '文本内容', description: '消息的文本内容' },
+      { key: 'markdown', label: 'Markdown内容', description: '消息的Markdown内容' }
+    ],
+    webhook: [
+      { key: 'payload', label: '请求数据', description: 'Webhook请求的数据体' },
+      { key: 'headers', label: '请求头', description: 'Webhook请求的头信息' }
+    ],
+    internal: [
+      { key: 'user_id', label: '用户ID', description: '系统内部用户的唯一标识' },
+      { key: 'title', label: '标题', description: '站内信的标题' },
+      { key: 'content', label: '内容', description: '站内信的内容' },
+      { key: 'type', label: '类型', description: '站内信的类型' },
+      { key: 'link', label: '链接', description: '相关的链接地址' }
+    ]
+  }
+  
+  return {
+    standardParams,
+    channelSpecificParams: channelSpecificParams[currentChannel.value.type] || []
+  }
+}
+
+// 初始化参数映射
+const initParamMapping = () => {
+  // 如果当前渠道没有参数映射或类型改变，则初始化默认映射
+  if (!currentChannel.value.paramMapping || Object.keys(currentChannel.value.paramMapping).length === 0) {
+    const defaultMapping = getDefaultParamMapping(currentChannel.value.type)
+    currentChannel.value.paramMapping = defaultMapping
+  }
+}
+
+// 获取默认参数映射
+const getDefaultParamMapping = (channelType) => {
+  switch (channelType) {
+    case 'email':
+      return {
+        recipient: 'to_email',
+        subject: 'subject',
+        content: 'html_body',
+        attachment: 'attachments'
+      }
+    case 'sms':
+      return {
+        recipient: 'phone_number',
+        content: 'content',
+        template_id: 'template_code'
+      }
+    case 'wechat':
+      return {
+        recipient: 'open_id',
+        subject: 'first_data',
+        content: 'remark',
+        url: 'url'
+      }
+    case 'dingtalk':
+      return {
+        recipient: 'user_id',
+        subject: 'title',
+        content: 'text'
+      }
+    case 'webhook':
+      return {
+        content: 'payload'
+      }
+    case 'internal':
+      return {
+        recipient: 'user_id',
+        subject: 'title',
+        content: 'content'
+      }
+    default:
+      return {}
+  }
+}
+
 // 初始化渠道配置
 const initChannelConfig = () => {
   const configFields = getChannelConfigForm()
@@ -307,6 +504,35 @@ const initChannelConfig = () => {
 // 监听渠道类型变化
 const handleChannelTypeChange = () => {
   initChannelConfig()
+  initParamMapping()
+}
+
+// 标签输入相关
+const inputTagVisible = ref(false)
+const inputTagValue = ref('')
+const tagInputRef = ref(null)
+
+// 显示标签输入框
+const showTagInput = () => {
+  inputTagVisible.value = true
+  nextTick(() => {
+    tagInputRef.value.focus()
+  })
+}
+
+// 确认标签输入
+const handleTagConfirm = () => {
+  if (inputTagValue.value) {
+    if (!currentChannel.value.tags) {
+      currentChannel.value.tags = []
+    }
+    // 检查标签是否已存在
+    if (!currentChannel.value.tags.includes(inputTagValue.value)) {
+      currentChannel.value.tags.push(inputTagValue.value)
+    }
+  }
+  inputTagVisible.value = false
+  inputTagValue.value = ''
 }
 
 onMounted(() => {
@@ -354,7 +580,24 @@ onMounted(() => {
             <el-option label="禁用" value="disabled" />
           </el-select>
         </el-col>
-        <el-col :xs="24" :sm="12" :md="6" :lg="10" :xl="10" class="action-buttons">
+        <el-col :xs="24" :sm="12" :md="6" :lg="4" :xl="4">
+          <el-select 
+            v-model="tagFilter" 
+            placeholder="标签筛选" 
+            class="filter-select"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+          >
+            <el-option
+              v-for="tag in allTags"
+              :key="tag"
+              :label="tag"
+              :value="tag"
+            />
+          </el-select>
+        </el-col>
+        <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6" class="action-buttons">
           <el-button type="primary" @click="openAddDialog">
             <el-icon><Plus /></el-icon>新增渠道
           </el-button>
@@ -387,9 +630,52 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="vendor" label="供应商" width="150" />
-        <el-table-column label="优先级" width="100" align="center">
+        <el-table-column label="标签" width="150">
+          <template #default="{ row }">
+            <el-tag
+              v-for="tag in row.tags"
+              :key="tag"
+              type="info"
+              effect="plain"
+              size="small"
+              class="channel-tag"
+            >
+              {{ tag }}
+            </el-tag>
+            <span v-if="!row.tags || row.tags.length === 0">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="优先级" width="90" align="center">
           <template #default="{ row }">
             <el-tag type="info" effect="plain">{{ row.priority }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="重试策略" width="120" align="center">
+          <template #default="{ row }">
+            <el-tooltip :content="`重试${row.retryTimes}次，间隔${row.retryInterval}秒`" placement="top">
+              <span>{{ row.retryTimes }}次/{{ row.retryInterval }}秒</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="监控指标" width="150" align="center">
+          <template #default="{ row }">
+            <el-tooltip v-if="row.monitorMetrics" placement="top">
+              <template #content>
+                <div>可用性: {{ row.monitorMetrics.availability }}%</div>
+                <div>成功率: {{ row.monitorMetrics.successRate }}%</div>
+                <div>平均响应: {{ row.monitorMetrics.avgResponseTime }}ms</div>
+              </template>
+              <div class="metrics-indicator">
+                <el-progress 
+                  type="dashboard" 
+                  :percentage="row.monitorMetrics?.successRate || 100" 
+                  :color="getSuccessRateColor(row.monitorMetrics?.successRate || 100)"
+                  :width="40"
+                  :stroke-width="6"
+                />
+              </div>
+            </el-tooltip>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -480,6 +766,30 @@ onMounted(() => {
           </el-col>
         </el-row>
         
+        <el-form-item label="标签">
+          <el-tag
+            v-for="tag in currentChannel.tags"
+            :key="tag"
+            closable
+            class="edit-tag"
+            @close="currentChannel.tags.splice(currentChannel.tags.indexOf(tag), 1)"
+          >
+            {{ tag }}
+          </el-tag>
+          <el-input
+            v-if="inputTagVisible"
+            ref="tagInputRef"
+            v-model="inputTagValue"
+            class="input-new-tag"
+            size="small"
+            @keyup.enter="handleTagConfirm"
+            @blur="handleTagConfirm"
+          />
+          <el-button v-else class="button-new-tag" size="small" @click="showTagInput">
+            + 新增标签
+          </el-button>
+        </el-form-item>
+        
         <el-row :gutter="20">
           <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
             <el-form-item label="优先级">
@@ -553,6 +863,86 @@ onMounted(() => {
         </template>
         
         <el-empty v-else description="请先选择渠道类型" :image-size="100" />
+
+        <el-divider>参数映射</el-divider>
+        
+        <template v-if="currentChannel.type">
+          <p class="param-mapping-desc">参数映射用于将标准参数转换为渠道特定参数，使业务系统可以使用统一的参数格式发送消息</p>
+          
+          <el-table :data="getParamMappingForm().standardParams" border style="width: 100%; margin-bottom: 20px;">
+            <el-table-column prop="label" label="标准参数" width="120" />
+            <el-table-column prop="description" label="参数描述" width="200" />
+            <el-table-column label="映射到渠道参数" min-width="200">
+              <template #default="{ row }">
+                <el-select 
+                  v-model="currentChannel.paramMapping[row.key]" 
+                  placeholder="请选择映射参数"
+                  style="width: 100%"
+                  clearable
+                >
+                  <el-option
+                    v-for="param in getParamMappingForm().channelSpecificParams"
+                    :key="param.key"
+                    :label="`${param.label} (${param.key})`"
+                    :value="param.key"
+                  />
+                </el-select>
+              </template>
+            </el-table-column>
+          </el-table>
+        </template>
+        
+        <el-empty v-else description="请先选择渠道类型" :image-size="100" />
+        
+        <el-divider>可用时间</el-divider>
+        
+        <el-form-item label="工作日">
+          <el-checkbox-group v-model="currentChannel.availableTime.workDays">
+            <el-checkbox :label="1">周一</el-checkbox>
+            <el-checkbox :label="2">周二</el-checkbox>
+            <el-checkbox :label="3">周三</el-checkbox>
+            <el-checkbox :label="4">周四</el-checkbox>
+            <el-checkbox :label="5">周五</el-checkbox>
+            <el-checkbox :label="6">周六</el-checkbox>
+            <el-checkbox :label="7">周日</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        
+        <el-form-item label="时间段">
+          <div v-for="(range, index) in currentChannel.availableTime.timeRanges" :key="index" class="time-range-item">
+            <el-time-picker
+              v-model="range.start"
+              format="HH:mm"
+              placeholder="开始时间"
+              style="width: 120px; margin-right: 10px;"
+            />
+            <span class="time-range-separator">至</span>
+            <el-time-picker
+              v-model="range.end"
+              format="HH:mm"
+              placeholder="结束时间"
+              style="width: 120px; margin-left: 10px; margin-right: 10px;"
+            />
+            <el-button 
+              type="danger" 
+              icon="Delete" 
+              circle 
+              size="small"
+              @click="currentChannel.availableTime.timeRanges.splice(index, 1)"
+              v-if="currentChannel.availableTime.timeRanges.length > 1"
+            />
+          </div>
+          <div class="add-time-range">
+            <el-button 
+              type="primary" 
+              plain 
+              size="small" 
+              @click="currentChannel.availableTime.timeRanges.push({ start: '00:00', end: '23:59' })"
+            >
+              添加时间段
+            </el-button>
+          </div>
+        </el-form-item>
       </el-form>
       
       <template #footer>
@@ -567,7 +957,7 @@ onMounted(() => {
     <el-dialog
       v-model="testDialogVisible"
       title="渠道测试"
-      width="500px"
+      width="600px"
       destroy-on-close
     >
       <div class="test-channel-info">
@@ -591,6 +981,31 @@ onMounted(() => {
         <el-form-item label="内容">
           <el-input v-model="testForm.content" type="textarea" :rows="3" placeholder="请输入消息内容" />
         </el-form-item>
+        
+        <el-collapse>
+          <el-collapse-item title="参数映射预览">
+            <div class="param-mapping-preview">
+              <p class="mapping-title">标准参数将被映射为以下渠道特定参数：</p>
+              <el-descriptions :column="1" border size="small">
+                <el-descriptions-item 
+                  v-for="(targetParam, sourceParam) in currentChannel.paramMapping" 
+                  :key="sourceParam"
+                  :label="getParamLabel(sourceParam, 'standard')"
+                >
+                  <el-tag size="small">{{ getParamLabel(targetParam, currentChannel.type) }}</el-tag>
+                  <div class="param-mapping-value">
+                    <small>
+                      值: 
+                      <span class="param-value">
+                        {{ getParamValue(sourceParam, testForm) || '-' }}
+                      </span>
+                    </small>
+                  </div>
+                </el-descriptions-item>
+              </el-descriptions>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
       </el-form>
       
       <div v-if="testResult.message" class="test-result">
@@ -667,6 +1082,56 @@ onMounted(() => {
   margin-top: 20px;
 }
 
+/* 参数映射样式 */
+.param-mapping-desc {
+  font-size: 14px;
+  color: #606266;
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.param-mapping-preview {
+  padding: 10px 0;
+}
+
+.mapping-title {
+  font-size: 14px;
+  color: #606266;
+  margin-bottom: 10px;
+}
+
+.param-mapping-value {
+  margin-top: 5px;
+  color: #909399;
+}
+
+.param-value {
+  color: #409EFF;
+  word-break: break-all;
+}
+
+/* 时间段样式 */
+.time-range-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.time-range-separator {
+  margin: 0 10px;
+  color: #909399;
+}
+
+.add-time-range {
+  margin-top: 10px;
+}
+
+/* 监控指标样式 */
+.metrics-indicator {
+  display: flex;
+  justify-content: center;
+}
+
 /* 响应式调整 */
 @media (max-width: 768px) {
   .action-buttons {
@@ -677,5 +1142,26 @@ onMounted(() => {
   .filter-select {
     margin-bottom: 10px;
   }
+}
+
+.channel-tag {
+  margin-right: 5px;
+}
+
+.edit-tag {
+  margin-right: 10px;
+  margin-bottom: 5px;
+}
+
+.button-new-tag {
+  margin-bottom: 5px;
+}
+
+.input-new-tag {
+  width: 150px;
+  margin-right: 10px;
+  margin-bottom: 5px;
+  display: inline-block;
+  vertical-align: bottom;
 }
 </style> 

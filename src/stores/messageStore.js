@@ -88,11 +88,196 @@ export const useMessageStore = defineStore('message', () => {
 
   // 模拟的通知渠道数据
   const mockChannels = [
-    { id: 1, name: '站内信', type: 'internal', status: 'enabled' },
-    { id: 2, name: '邮件', type: 'email', status: 'enabled' },
-    { id: 3, name: '短信', type: 'sms', status: 'enabled' },
-    { id: 4, name: '微信', type: 'wechat', status: 'disabled' },
-    { id: 5, name: '钉钉', type: 'dingtalk', status: 'enabled' }
+    { 
+      id: 1, 
+      name: '系统站内信', 
+      type: 'internal', 
+      status: 'enabled',
+      config: {
+        messageBoxSize: 100,
+        notificationEnabled: true
+      },
+      priority: 1,
+      retryTimes: 3,
+      retryInterval: 30,
+      rateLimit: 1000,
+      vendor: '自建系统',
+      tags: ['系统', '内部'],
+      paramMapping: {
+        recipient: 'user_id',
+        subject: 'title',
+        content: 'content',
+        url: 'link'
+      },
+      availableTime: {
+        workDays: [1, 2, 3, 4, 5, 6, 7],
+        timeRanges: [{ start: '00:00', end: '23:59' }]
+      },
+      monitorMetrics: {
+        availability: 99.9,
+        successRate: 99.8,
+        avgResponseTime: 50
+      }
+    },
+    { 
+      id: 2, 
+      name: '企业邮箱', 
+      type: 'email', 
+      status: 'enabled',
+      config: {
+        host: 'smtp.example.com',
+        port: 465,
+        username: 'notification@example.com',
+        password: '******',
+        ssl: true,
+        from: 'notification@example.com'
+      },
+      priority: 2,
+      retryTimes: 3,
+      retryInterval: 60,
+      rateLimit: 50,
+      vendor: '腾讯企业邮',
+      tags: ['邮件', '正式'],
+      paramMapping: {
+        recipient: 'to_email',
+        subject: 'subject',
+        content: 'html_body',
+        attachment: 'attachments'
+      },
+      availableTime: {
+        workDays: [1, 2, 3, 4, 5],
+        timeRanges: [{ start: '08:30', end: '22:00' }]
+      },
+      monitorMetrics: {
+        availability: 98.5,
+        successRate: 97.2,
+        avgResponseTime: 1200
+      }
+    },
+    { 
+      id: 3, 
+      name: '阿里云短信', 
+      type: 'sms', 
+      status: 'enabled',
+      config: {
+        accessKey: 'ALI*****',
+        secretKey: '******',
+        signName: '信立集团',
+        region: 'cn-hangzhou'
+      },
+      priority: 3,
+      retryTimes: 2,
+      retryInterval: 30,
+      rateLimit: 20,
+      vendor: '阿里云',
+      tags: ['短信', '营销'],
+      paramMapping: {
+        recipient: 'phone_number',
+        content: 'content',
+        template_id: 'template_code'
+      },
+      availableTime: {
+        workDays: [1, 2, 3, 4, 5, 6, 7],
+        timeRanges: [{ start: '08:00', end: '20:00' }]
+      },
+      monitorMetrics: {
+        availability: 99.1,
+        successRate: 98.5,
+        avgResponseTime: 800
+      }
+    },
+    { 
+      id: 4, 
+      name: '企业微信通知', 
+      type: 'wechat', 
+      status: 'disabled',
+      config: {
+        appId: 'wx*****',
+        appSecret: '******',
+        templateId: 'template_123'
+      },
+      priority: 4,
+      retryTimes: 2,
+      retryInterval: 60,
+      rateLimit: 30,
+      vendor: '腾讯企业微信',
+      tags: ['微信', '测试'],
+      paramMapping: {
+        recipient: 'open_id',
+        subject: 'first_data',
+        content: 'remark',
+        url: 'url'
+      },
+      availableTime: {
+        workDays: [1, 2, 3, 4, 5],
+        timeRanges: [{ start: '09:00', end: '18:00' }]
+      },
+      monitorMetrics: {
+        availability: 96.0,
+        successRate: 94.5,
+        avgResponseTime: 1500
+      }
+    },
+    { 
+      id: 5, 
+      name: '钉钉工作通知', 
+      type: 'dingtalk', 
+      status: 'enabled',
+      config: {
+        accessToken: 'din*****',
+        secret: '******'
+      },
+      priority: 5,
+      retryTimes: 3,
+      retryInterval: 60,
+      rateLimit: 50,
+      vendor: '阿里钉钉',
+      tags: ['钉钉', '内部'],
+      paramMapping: {
+        recipient: 'user_id',
+        subject: 'title',
+        content: 'text'
+      },
+      availableTime: {
+        workDays: [1, 2, 3, 4, 5],
+        timeRanges: [{ start: '09:00', end: '19:00' }]
+      },
+      monitorMetrics: {
+        availability: 99.5,
+        successRate: 98.8,
+        avgResponseTime: 700
+      }
+    },
+    { 
+      id: 6, 
+      name: '业务系统Webhook', 
+      type: 'webhook', 
+      status: 'enabled',
+      config: {
+        url: 'https://api.example.com/notifications',
+        method: 'POST',
+        headers: '{"Content-Type": "application/json", "X-API-Key": "abc123"}',
+        timeout: 5
+      },
+      priority: 6,
+      retryTimes: 5,
+      retryInterval: 120,
+      rateLimit: 100,
+      vendor: '内部系统',
+      tags: ['webhook', 'API'],
+      paramMapping: {
+        content: 'payload'
+      },
+      availableTime: {
+        workDays: [1, 2, 3, 4, 5, 6, 7],
+        timeRanges: [{ start: '00:00', end: '23:59' }]
+      },
+      monitorMetrics: {
+        availability: 99.8,
+        successRate: 99.5,
+        avgResponseTime: 250
+      }
+    }
   ]
 
   // 模拟的系统对接数据
