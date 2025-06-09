@@ -9,6 +9,7 @@ import Channels from '../views/Channels.vue'
 import Recipients from '../views/Recipients.vue'
 import MessageTypes from '../views/MessageTypes.vue'
 import Settings from '../views/Settings.vue'
+import ParamConfig from '../views/ParamConfig.vue'
 import Login from '../views/Login.vue'
 import NotFound from '../views/NotFound.vue'
 
@@ -59,6 +60,12 @@ const router = createRouter({
           name: 'channels',
           component: Channels,
           meta: { title: '通知渠道', icon: 'Share' }
+        },
+        {
+          path: 'param-config',
+          name: 'param-config',
+          component: ParamConfig,
+          meta: { title: '标准参数', icon: 'SetUp' }
         },
         {
           path: 'recipients',

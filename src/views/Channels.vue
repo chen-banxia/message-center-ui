@@ -147,7 +147,10 @@ const openAddDialog = () => {
     paramMapping: {},
     availableTime: {
       workDays: [1, 2, 3, 4, 5],
-      timeRanges: [{ start: '00:00', end: '23:59' }]
+      timeRanges: [{ 
+        start: convertTimeStringToDate('00:00'), 
+        end: convertTimeStringToDate('23:59') 
+      }]
     },
     monitorMetrics: {
       availability: 100,
@@ -161,8 +164,45 @@ const openAddDialog = () => {
 // 打开编辑渠道对话框
 const openEditDialog = (channel) => {
   dialogMode.value = 'edit'
-  currentChannel.value = JSON.parse(JSON.stringify(channel))
+  // 深拷贝渠道数据
+  const channelCopy = JSON.parse(JSON.stringify(channel))
+  
+  // 转换时间字符串为Date对象
+  if (channelCopy.availableTime && channelCopy.availableTime.timeRanges) {
+    channelCopy.availableTime.timeRanges = channelCopy.availableTime.timeRanges.map(range => ({
+      start: convertTimeStringToDate(range.start),
+      end: convertTimeStringToDate(range.end)
+    }))
+  }
+  
+  currentChannel.value = channelCopy
   channelDialogVisible.value = true
+}
+
+// 将时间字符串转换为Date对象
+const convertTimeStringToDate = (timeString) => {
+  if (!timeString) return new Date()
+  
+  const [hours, minutes] = timeString.split(':').map(Number)
+  const date = new Date()
+  date.setHours(hours || 0)
+  date.setMinutes(minutes || 0)
+  date.setSeconds(0)
+  return date
+}
+
+// 将Date对象转换为时间字符串 (HH:mm)
+const convertDateToTimeString = (date) => {
+  if (!date) return '00:00'
+  
+  try {
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    return `${hours}:${minutes}`
+  } catch (error) {
+    console.error('时间格式转换错误:', error)
+    return '00:00'
+  }
 }
 
 // 保存渠道
@@ -173,20 +213,29 @@ const saveChannel = () => {
     return
   }
   
+  // 转换时间范围格式，从Date对象转回字符串
+  const channelToSave = JSON.parse(JSON.stringify(currentChannel.value))
+  if (channelToSave.availableTime && channelToSave.availableTime.timeRanges) {
+    channelToSave.availableTime.timeRanges = channelToSave.availableTime.timeRanges.map(range => ({
+      start: convertDateToTimeString(range.start),
+      end: convertDateToTimeString(range.end)
+    }))
+  }
+  
   // 实际项目中应调用API保存
   if (dialogMode.value === 'add') {
     // 模拟添加
     const newChannel = {
-      ...currentChannel.value,
+      ...channelToSave,
       id: messageStore.channels.length + 1
     }
     messageStore.channels.push(newChannel)
     ElMessage.success('渠道添加成功')
   } else {
     // 模拟更新
-    const index = messageStore.channels.findIndex(c => c.id === currentChannel.value.id)
+    const index = messageStore.channels.findIndex(c => c.id === channelToSave.id)
     if (index !== -1) {
-      messageStore.channels[index] = { ...currentChannel.value }
+      messageStore.channels[index] = { ...channelToSave }
       ElMessage.success('渠道更新成功')
     }
   }
@@ -1028,7 +1077,10 @@ onMounted(() => {
               type="primary" 
               plain 
               size="small" 
-              @click="currentChannel.availableTime.timeRanges.push({ start: '00:00', end: '23:59' })"
+              @click="currentChannel.availableTime.timeRanges.push({ 
+                start: convertTimeStringToDate('00:00'), 
+                end: convertTimeStringToDate('23:59') 
+              })"
             >
               添加时间段
             </el-button>
