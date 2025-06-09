@@ -426,10 +426,25 @@ const getParamMappingForm = () => {
 
 // 初始化参数映射
 const initParamMapping = () => {
-  // 如果当前渠道没有参数映射或类型改变，则初始化默认映射
-  if (!currentChannel.value.paramMapping || Object.keys(currentChannel.value.paramMapping).length === 0) {
-    const defaultMapping = getDefaultParamMapping(currentChannel.value.type)
-    currentChannel.value.paramMapping = defaultMapping
+  // 如果当前渠道没有参数映射，则初始化默认映射
+  if (!currentChannel.value.paramMapping) {
+    currentChannel.value.paramMapping = {}
+  }
+  
+  // 获取默认映射
+  const defaultMapping = getDefaultParamMapping(currentChannel.value.type)
+  
+  // 在编辑模式下，保留现有映射，只添加缺失的默认映射
+  if (dialogMode.value === 'edit') {
+    // 合并默认映射和现有映射，保留用户设置的映射
+    Object.keys(defaultMapping).forEach(key => {
+      if (!currentChannel.value.paramMapping[key]) {
+        currentChannel.value.paramMapping[key] = defaultMapping[key]
+      }
+    })
+  } else {
+    // 新增模式下，使用默认映射
+    currentChannel.value.paramMapping = { ...defaultMapping }
   }
 }
 
@@ -504,7 +519,27 @@ const initChannelConfig = () => {
 // 监听渠道类型变化
 const handleChannelTypeChange = () => {
   initChannelConfig()
+  
+  // 保存当前的参数映射
+  const oldMapping = { ...currentChannel.value.paramMapping }
+  
+  // 初始化新的参数映射
   initParamMapping()
+  
+  // 如果是编辑模式且渠道类型改变，尝试保留兼容的参数映射
+  if (dialogMode.value === 'edit') {
+    const newParams = getParamMappingForm().channelSpecificParams
+    const newParamKeys = newParams.map(p => p.key)
+    
+    // 检查旧映射中的值是否在新渠道参数中存在
+    Object.keys(oldMapping).forEach(standardKey => {
+      const targetParam = oldMapping[standardKey]
+      if (newParamKeys.includes(targetParam)) {
+        // 如果目标参数在新渠道类型中也存在，则保留映射
+        currentChannel.value.paramMapping[standardKey] = targetParam
+      }
+    })
+  }
 }
 
 // 标签输入相关
@@ -533,6 +568,22 @@ const handleTagConfirm = () => {
   }
   inputTagVisible.value = false
   inputTagValue.value = ''
+}
+
+// 清除参数映射
+const clearParamMapping = (key) => {
+  if (currentChannel.value.paramMapping && key in currentChannel.value.paramMapping) {
+    // 使用Vue的响应式API删除属性
+    delete currentChannel.value.paramMapping[key]
+    // 强制更新
+    currentChannel.value = { ...currentChannel.value }
+  }
+}
+
+// 重置所有参数映射为默认值
+const resetAllParamMappings = () => {
+  const defaultMapping = getDefaultParamMapping(currentChannel.value.type)
+  currentChannel.value.paramMapping = { ...defaultMapping }
 }
 
 onMounted(() => {
@@ -867,7 +918,17 @@ onMounted(() => {
         <el-divider>参数映射</el-divider>
         
         <template v-if="currentChannel.type">
-          <p class="param-mapping-desc">参数映射用于将标准参数转换为渠道特定参数，使业务系统可以使用统一的参数格式发送消息</p>
+          <div class="param-mapping-header">
+            <p class="param-mapping-desc">参数映射用于将标准参数转换为渠道特定参数，使业务系统可以使用统一的参数格式发送消息</p>
+            <el-button 
+              type="primary" 
+              size="small" 
+              plain
+              @click="resetAllParamMappings"
+            >
+              恢复默认映射
+            </el-button>
+          </div>
           
           <el-table :data="getParamMappingForm().standardParams" border style="width: 100%; margin-bottom: 20px;">
             <el-table-column prop="label" label="标准参数" width="120" />
@@ -887,6 +948,36 @@ onMounted(() => {
                     :value="param.key"
                   />
                 </el-select>
+                <div class="param-mapping-status" v-if="currentChannel.paramMapping[row.key]">
+                  <el-tag size="small" type="success">
+                    已映射到: {{ getParamLabel(currentChannel.paramMapping[row.key], currentChannel.type) }}
+                  </el-tag>
+                </div>
+                <div class="param-mapping-status" v-else>
+                  <el-tag size="small" type="info">未映射</el-tag>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120">
+              <template #default="{ row }">
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  text
+                  @click="currentChannel.paramMapping[row.key] = getDefaultParamMapping(currentChannel.type)[row.key] || ''"
+                  :disabled="!getDefaultParamMapping(currentChannel.type)[row.key]"
+                >
+                  重置默认
+                </el-button>
+                <el-button 
+                  type="danger" 
+                  size="small" 
+                  text
+                  @click="clearParamMapping(row.key)"
+                  :disabled="!currentChannel.paramMapping[row.key]"
+                >
+                  清除
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -986,23 +1077,34 @@ onMounted(() => {
           <el-collapse-item title="参数映射预览">
             <div class="param-mapping-preview">
               <p class="mapping-title">标准参数将被映射为以下渠道特定参数：</p>
-              <el-descriptions :column="1" border size="small">
-                <el-descriptions-item 
-                  v-for="(targetParam, sourceParam) in currentChannel.paramMapping" 
-                  :key="sourceParam"
-                  :label="getParamLabel(sourceParam, 'standard')"
-                >
-                  <el-tag size="small">{{ getParamLabel(targetParam, currentChannel.type) }}</el-tag>
-                  <div class="param-mapping-value">
-                    <small>
-                      值: 
-                      <span class="param-value">
-                        {{ getParamValue(sourceParam, testForm) || '-' }}
-                      </span>
-                    </small>
-                  </div>
-                </el-descriptions-item>
-              </el-descriptions>
+              
+              <el-empty 
+                v-if="!currentChannel.paramMapping || Object.keys(currentChannel.paramMapping).length === 0" 
+                description="未配置参数映射" 
+                :image-size="80" 
+              />
+              
+              <el-table 
+                v-else
+                :data="Object.keys(currentChannel.paramMapping).map(key => ({
+                  standardKey: key,
+                  standardLabel: getParamLabel(key, 'standard'),
+                  targetKey: currentChannel.paramMapping[key],
+                  targetLabel: getParamLabel(currentChannel.paramMapping[key], currentChannel.type),
+                  value: getParamValue(key, testForm)
+                }))"
+                border 
+                size="small"
+                style="width: 100%"
+              >
+                <el-table-column label="标准参数" prop="standardLabel" width="120" />
+                <el-table-column label="映射到渠道参数" prop="targetLabel" width="150" />
+                <el-table-column label="实际值">
+                  <template #default="{ row }">
+                    <span class="param-value">{{ row.value || '-' }}</span>
+                  </template>
+                </el-table-column>
+              </el-table>
             </div>
           </el-collapse-item>
         </el-collapse>
@@ -1083,11 +1185,19 @@ onMounted(() => {
 }
 
 /* 参数映射样式 */
+.param-mapping-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
 .param-mapping-desc {
   font-size: 14px;
   color: #606266;
-  margin-bottom: 15px;
+  margin: 0;
   line-height: 1.5;
+  flex: 1;
 }
 
 .param-mapping-preview {
@@ -1108,6 +1218,10 @@ onMounted(() => {
 .param-value {
   color: #409EFF;
   word-break: break-all;
+}
+
+.param-mapping-status {
+  margin-top: 5px;
 }
 
 /* 时间段样式 */
