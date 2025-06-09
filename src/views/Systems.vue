@@ -1,11 +1,11 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useMessageStore } from '../stores/messageStore'
+import { useSystemStore } from '@/stores'
 
-const messageStore = useMessageStore()
+const systemStore = useSystemStore()
 
 // 系统列表
-const systems = computed(() => messageStore.systems)
+const systems = computed(() => systemStore.systems)
 
 // 表格加载状态
 const loading = ref(false)
@@ -58,7 +58,7 @@ const loadSystems = () => {
   
   // 实际项目中应从API获取
   setTimeout(() => {
-    messageStore.loadSystems()
+    systemStore.loadSystems()
     loading.value = false
   }, 500)
 }
@@ -98,22 +98,14 @@ const saveSystem = () => {
   // 更新时间
   currentSystem.value.updateTime = new Date().toLocaleString()
   
-  // 实际项目中应调用API保存
   if (dialogMode.value === 'add') {
-    // 模拟添加
-    const newSystem = {
-      ...currentSystem.value,
-      id: messageStore.systems.length + 1
-    }
-    messageStore.systems.push(newSystem)
+    // 使用store的addSystem方法
+    systemStore.addSystem(currentSystem.value)
     ElMessage.success('系统添加成功')
   } else {
-    // 模拟更新
-    const index = messageStore.systems.findIndex(s => s.id === currentSystem.value.id)
-    if (index !== -1) {
-      messageStore.systems[index] = { ...currentSystem.value }
-      ElMessage.success('系统更新成功')
-    }
+    // 使用store的updateSystem方法
+    systemStore.updateSystem(currentSystem.value.id, currentSystem.value)
+    ElMessage.success('系统更新成功')
   }
   
   systemDialogVisible.value = false
@@ -122,13 +114,11 @@ const saveSystem = () => {
 // 切换系统状态
 const toggleSystemStatus = (system) => {
   const newStatus = system.status === 'enabled' ? 'disabled' : 'enabled'
-  const index = messageStore.systems.findIndex(s => s.id === system.id)
   
-  if (index !== -1) {
-    messageStore.systems[index].status = newStatus
-    messageStore.systems[index].updateTime = new Date().toLocaleString()
-    
-    ElMessage.success(`系统已${newStatus === 'enabled' ? '启用' : '禁用'}`)
+  if (newStatus === 'enabled') {
+    systemStore.enableSystem(system.id)
+  } else {
+    systemStore.disableSystem(system.id)
   }
 }
 
@@ -156,7 +146,7 @@ const copyApiKey = () => {
 
 onMounted(() => {
   // 确保数据已加载
-  if (messageStore.systems.length === 0) {
+  if (systemStore.systems.length === 0) {
     loadSystems()
   }
 })

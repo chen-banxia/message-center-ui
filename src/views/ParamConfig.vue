@@ -1,8 +1,8 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { useMessageStore } from '../stores/messageStore'
+import { useChannelStore } from '@/stores'
 
-const messageStore = useMessageStore()
+const channelStore = useChannelStore()
 
 // 标准参数列表
 const standardParams = ref([])
@@ -112,10 +112,10 @@ const channelSpecificParams = {
 // 默认映射关系表
 const defaultMappings = ref([])
 
-// 监听 messageStore 中的默认参数映射配置变化
+// 监听 channelStore 中的默认参数映射配置变化
 const initDefaultMappings = () => {
-  if (messageStore.defaultParamMappings && messageStore.defaultParamMappings.length > 0) {
-    defaultMappings.value = JSON.parse(JSON.stringify(messageStore.defaultParamMappings))
+  if (channelStore.defaultParamMappings && channelStore.defaultParamMappings.length > 0) {
+    defaultMappings.value = JSON.parse(JSON.stringify(channelStore.defaultParamMappings))
   }
 }
 
@@ -250,6 +250,9 @@ const loadStandardParams = () => {
     ]
     
     loading.value = false
+    
+    // 初始化默认映射配置
+    initDefaultMappings()
   }, 500)
 }
 
@@ -285,9 +288,8 @@ const saveParam = () => {
     return
   }
   
-  // 实际项目中应调用API保存
   if (dialogMode.value === 'add') {
-    // 模拟添加
+    // 添加新参数
     const newParam = {
       ...currentParam.value,
       id: standardParams.value.length + 1
@@ -295,7 +297,7 @@ const saveParam = () => {
     standardParams.value.push(newParam)
     ElMessage.success('参数添加成功')
   } else {
-    // 模拟更新
+    // 更新参数
     const index = standardParams.value.findIndex(p => p.id === currentParam.value.id)
     if (index !== -1) {
       standardParams.value[index] = { ...currentParam.value }
@@ -309,22 +311,21 @@ const saveParam = () => {
 // 删除参数
 const deleteParam = (param) => {
   ElMessageBox.confirm(
-    `确定要删除参数"${param.label}"吗？删除后可能影响现有的参数映射。`,
-    '警告',
+    `确定要删除参数"${param.label}"吗？`,
+    '删除确认',
     {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     }
   ).then(() => {
-    // 实际项目中应调用API删除
     const index = standardParams.value.findIndex(p => p.id === param.id)
     if (index !== -1) {
       standardParams.value.splice(index, 1)
       ElMessage.success('参数删除成功')
     }
   }).catch(() => {
-    // 取消删除
+    // 用户取消
   })
 }
 
@@ -371,111 +372,106 @@ const getValidationRuleText = (rules) => {
   return texts.join(', ')
 }
 
-// 打开默认映射配置对话框
+// 打开参数映射配置对话框
 const openMappingDialog = (param) => {
-  // 查找该参数的默认映射配置
-  const existingMapping = defaultMappings.value.find(m => m.standardParam === param.key)
+  // 初始化当前映射配置
+  currentMappingConfig.value = {
+    standardParam: param,
+    mappings: {}
+  }
+  
+  // 从默认映射配置中获取该参数的映射关系
+  const existingMapping = defaultMappings.value.find(m => m.standardParam.id === param.id)
   
   if (existingMapping) {
-    // 如果存在，使用现有配置
+    // 如果已有映射配置，复制一份以便编辑
     currentMappingConfig.value = JSON.parse(JSON.stringify(existingMapping))
-  } else {
-    // 如果不存在，创建新配置
-    currentMappingConfig.value = {
-      standardParam: param.key,
-      mappings: {
-        email: '',
-        sms: '',
-        wechat: '',
-        dingtalk: '',
-        webhook: '',
-        internal: ''
+    
+    // 确保所有渠道都有配置对象
+    channelTypes.value.forEach(channel => {
+      if (!currentMappingConfig.value.mappings[channel.value]) {
+        currentMappingConfig.value.mappings[channel.value] = {
+          paramKey: '',
+          description: '',
+          isRequired: param.required
+        }
       }
-    }
+    })
+  } else {
+    // 如果没有已存在的映射，为所有渠道初始化一个空的映射配置
+    channelTypes.value.forEach(channel => {
+      const isApplied = param.appliedChannels && param.appliedChannels.includes(channel.value)
+      currentMappingConfig.value.mappings[channel.value] = {
+        paramKey: '',
+        description: '',
+        isRequired: isApplied ? param.required : false
+      }
+    })
   }
+  
+  // 打印调试信息，便于确认映射关系
+  console.log('当前参数映射配置:', currentMappingConfig.value)
   
   mappingDialogVisible.value = true
 }
 
-// 保存默认映射配置
+// 保存参数映射配置
 const saveMappingConfig = () => {
-  const index = defaultMappings.value.findIndex(m => m.standardParam === currentMappingConfig.value.standardParam)
+  // 清理空的映射关系，只保留有参数映射的渠道
+  const cleanedMappings = {}
+  Object.keys(currentMappingConfig.value.mappings).forEach(channel => {
+    if (currentMappingConfig.value.mappings[channel] && 
+        currentMappingConfig.value.mappings[channel].paramKey) {
+      cleanedMappings[channel] = currentMappingConfig.value.mappings[channel]
+    }
+  })
+  
+  // 创建要保存的映射配置
+  const configToSave = {
+    standardParam: currentMappingConfig.value.standardParam,
+    mappings: cleanedMappings
+  }
+  
+  // 查找是否已存在该参数的映射配置
+  const index = defaultMappings.value.findIndex(m => 
+    m.standardParam.id === currentMappingConfig.value.standardParam.id
+  )
   
   if (index !== -1) {
     // 更新现有配置
-    defaultMappings.value[index] = { ...currentMappingConfig.value }
+    defaultMappings.value[index] = JSON.parse(JSON.stringify(configToSave))
   } else {
     // 添加新配置
-    defaultMappings.value.push({ ...currentMappingConfig.value })
+    defaultMappings.value.push(JSON.parse(JSON.stringify(configToSave)))
   }
   
-  // 将更新后的配置同步到 messageStore
-  messageStore.updateDefaultParamMappings(defaultMappings.value)
+  // 更新到 channelStore
+  channelStore.updateDefaultParamMappings(defaultMappings.value)
   
-  ElMessage.success('默认映射配置已保存')
+  ElMessage.success('参数映射配置已保存')
   mappingDialogVisible.value = false
+  
+  // 打印保存后的映射列表，便于确认
+  console.log('保存后的映射列表:', defaultMappings.value)
 }
 
-// 获取渠道参数显示名称
-const getChannelParamLabel = (channelType, paramKey) => {
-  if (!paramKey) return '-'
-  
-  const param = channelSpecificParams[channelType]?.find(p => p.key === paramKey)
-  return param ? param.label : paramKey
-}
-
-// 获取标准参数的默认映射
-const getDefaultMappingForParam = (paramKey) => {
-  return defaultMappings.value.find(m => m.standardParam === paramKey)?.mappings || {}
-}
-
-// 导出默认映射配置
-const exportMappingConfig = () => {
-  const configData = JSON.stringify(defaultMappings.value, null, 2)
-  const blob = new Blob([configData], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'param-mappings-config.json'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  
-  ElMessage.success('配置已导出')
-}
-
-// 导入默认映射配置
-const importMappingConfig = (event) => {
-  const file = event.target.files[0]
-  if (!file) return
-  
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
-      const config = JSON.parse(e.target.result)
-      defaultMappings.value = config
-      // 将导入的配置同步到 messageStore
-      messageStore.updateDefaultParamMappings(config)
-      ElMessage.success('配置已导入')
-    } catch (error) {
-      ElMessage.error('导入失败，请检查文件格式')
-    }
-  }
-  reader.readAsText(file)
+// 获取渠道特定参数选项
+const getChannelParamOptions = (channelType) => {
+  return channelSpecificParams[channelType] || []
 }
 
 onMounted(() => {
-  // 加载标准参数
+  // 加载标准参数列表
   loadStandardParams()
   
   // 加载默认参数映射配置
-  if (!messageStore.defaultParamMappings || messageStore.defaultParamMappings.length === 0) {
-    messageStore.loadDefaultParamMappings()
+  if (!channelStore.defaultParamMappings) {
+    channelStore.loadDefaultParamMappings().then(() => {
+      initDefaultMappings()
+    })
+  } else {
+    initDefaultMappings()
   }
-  
-  // 初始化默认映射配置
-  initDefaultMappings()
 })
 </script>
 
@@ -645,17 +641,21 @@ onMounted(() => {
             :header-cell-style="{ background: '#f5f7fa' }"
             border
           >
-            <el-table-column label="标准参数" width="150">
+            <el-table-column label="参数标识" width="150">
               <template #default="{ row }">
-                <el-tag type="info" effect="plain">{{ row.standardParam }}</el-tag>
+                <el-tag type="info" effect="plain">{{ row.standardParam.key }}</el-tag>
               </template>
             </el-table-column>
             
             <el-table-column v-for="channel in channelTypes" :key="channel.value" :label="channel.label" min-width="150">
               <template #default="{ row }">
                 <div class="mapping-cell">
-                  <el-tag v-if="row.mappings[channel.value]" type="success" effect="light">
-                    {{ getChannelParamLabel(channel.value, row.mappings[channel.value]) }}
+                  <el-tag 
+                    v-if="row.mappings && row.mappings[channel.value] && row.mappings[channel.value].paramKey" 
+                    type="success" 
+                    effect="light"
+                  >
+                    {{ getChannelParamOptions(channel.value).find(p => p.key === row.mappings[channel.value].paramKey)?.label || row.mappings[channel.value].paramKey }}
                   </el-tag>
                   <span v-else class="no-mapping">未映射</span>
                 </div>
@@ -668,7 +668,7 @@ onMounted(() => {
                   type="primary"
                   size="small"
                   text
-                  @click="openMappingDialog({key: row.standardParam})"
+                  @click="openMappingDialog(row.standardParam)"
                 >
                   编辑映射
                 </el-button>
@@ -800,7 +800,7 @@ onMounted(() => {
       destroy-on-close
     >
       <div class="mapping-dialog-header">
-        <h3>标准参数: {{ currentMappingConfig.standardParam }}</h3>
+        <h3>参数标识: {{ currentMappingConfig.standardParam.key }}</h3>
         <p class="mapping-dialog-desc">为该参数配置在各个渠道中的默认映射关系</p>
       </div>
       
@@ -811,13 +811,13 @@ onMounted(() => {
           :label="channel.label"
         >
           <el-select 
-            v-model="currentMappingConfig.mappings[channel.value]" 
+            v-model="currentMappingConfig.mappings[channel.value].paramKey" 
             placeholder="请选择映射参数"
             style="width: 100%"
             clearable
           >
             <el-option
-              v-for="param in channelSpecificParams[channel.value]"
+              v-for="param in getChannelParamOptions(channel.value)"
               :key="param.key"
               :label="`${param.label} (${param.key})`"
               :value="param.key"
@@ -964,4 +964,4 @@ onMounted(() => {
     margin-top: 10px;
   }
 }
-</style> 
+</style>

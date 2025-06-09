@@ -1,11 +1,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useMessageStore } from '../stores/messageStore'
+import { useMessageStore, useInitStore } from '@/stores'
 
 const router = useRouter()
 const route = useRoute()
 const messageStore = useMessageStore()
+const initStore = useInitStore()
 
 // 控制侧边栏折叠状态
 const isCollapse = ref(false)
@@ -35,7 +36,8 @@ const handleNotificationClick = () => {
 
 // 初始化数据
 onMounted(() => {
-  messageStore.initializeData()
+  // 使用统一的初始化方法，正确的方法名是initializeAll
+  initStore.initializeAll()
 })
 </script>
 

@@ -1,9 +1,14 @@
 <script setup>
 import { ref, onMounted, reactive, onUnmounted } from 'vue'
-import { useMessageStore } from '../stores/messageStore'
+import { useMessageStore, useMessageTypeStore, useTemplateStore, useChannelStore, useSystemStore, useStatisticsStore } from '@/stores'
 import * as echarts from 'echarts'
 
 const messageStore = useMessageStore()
+const messageTypeStore = useMessageTypeStore()
+const templateStore = useTemplateStore()
+const channelStore = useChannelStore()
+const systemStore = useSystemStore()
+const statisticsStore = useStatisticsStore()
 
 // 统计数据
 const stats = reactive({
@@ -23,9 +28,9 @@ const loadStats = () => {
   // 实际项目中应从API获取
   stats.totalMessages = messageStore.messages.length
   stats.unreadMessages = messageStore.unreadCount
-  stats.systemCount = messageStore.systems.length
-  stats.templateCount = messageStore.templates.length
-  stats.channelCount = messageStore.channels.length
+  stats.systemCount = systemStore.systems.length
+  stats.templateCount = templateStore.templates.length
+  stats.channelCount = channelStore.channels.length
 }
 
 // 初始化消息类型分布图表
@@ -51,7 +56,7 @@ const initMessageTypeChart = () => {
       // 如果消息类型中没有颜色，尝试从messageTypes中获取
       let color = typeColor
       if (!color) {
-        const typeObj = messageStore.messageTypes.find(t => t.name === typeName)
+        const typeObj = messageTypeStore.messageTypes.find(t => t.name === typeName)
         color = typeObj ? typeObj.color : '#409EFF'
       }
       
@@ -109,8 +114,8 @@ const initChannelStatusChart = () => {
   channelChart = echarts.init(chartDom)
   
   // 统计各渠道状态
-  const enabledCount = messageStore.channels.filter(c => c.status === 'enabled').length
-  const disabledCount = messageStore.channels.filter(c => c.status === 'disabled').length
+  const enabledCount = channelStore.channels.filter(c => c.status === 'enabled').length
+  const disabledCount = channelStore.channels.filter(c => c.status === 'disabled').length
   
   const option = {
     title: {
@@ -198,10 +203,17 @@ onMounted(() => {
   try {
     console.log('Dashboard mounted, 正在加载数据...')
     
-    // 确保数据已加载
-    if (messageStore.messages.length === 0) {
-      console.log('消息数据为空，初始化数据...')
-      messageStore.initializeData()
+    // 确保所有数据已加载
+    if (messageStore.messages.length === 0 || 
+        messageTypeStore.messageTypes.length === 0 || 
+        channelStore.channels.length === 0) {
+      // 加载所有必要的数据
+      messageStore.loadMessages()
+      messageTypeStore.loadMessageTypes()
+      channelStore.loadChannels()
+      systemStore.loadSystems()
+      templateStore.loadTemplates()
+      statisticsStore.loadStatistics()
     }
     
     // 加载统计数据
@@ -213,7 +225,7 @@ onMounted(() => {
       try {
         console.log('开始初始化图表...')
         console.log('消息数据:', messageStore.messages.length)
-        console.log('渠道数据:', messageStore.channels.length)
+        console.log('渠道数据:', channelStore.channels.length)
         
         if (messageStore.messages.length > 0) {
           initMessageTypeChart()
@@ -221,7 +233,7 @@ onMounted(() => {
           console.warn('消息数据为空，跳过消息类型图表初始化')
         }
         
-        if (messageStore.channels.length > 0) {
+        if (channelStore.channels.length > 0) {
           initChannelStatusChart()
         } else {
           console.warn('渠道数据为空，跳过渠道状态图表初始化')

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, reactive, watch } from 'vue'
-import { useMessageStore } from '../stores/messageStore'
+import { useTemplateStore, useMessageTypeStore, useChannelStore } from '@/stores'
 import { 
   Plus, 
   Delete, 
@@ -14,14 +14,16 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-const messageStore = useMessageStore()
+const templateStore = useTemplateStore()
+const messageTypeStore = useMessageTypeStore()
+const channelStore = useChannelStore()
 
 // 模板列表
-const templates = computed(() => messageStore.templates)
+const templates = computed(() => templateStore.templates)
 // 消息类型列表
-const messageTypes = computed(() => messageStore.messageTypes)
+const messageTypes = computed(() => messageTypeStore.messageTypes)
 // 通知渠道列表
-const channels = computed(() => messageStore.channels)
+const channels = computed(() => channelStore.channels)
 
 // 表格加载状态
 const loading = ref(false)
@@ -154,7 +156,7 @@ const searchForm = ref({
 
 // 过滤后的模板列表
 const filteredTemplates = computed(() => {
-  return messageStore.templates.filter(template => {
+  return templateStore.templates.filter(template => {
     const nameMatch = !searchForm.value.name || 
       template.templateName.toLowerCase().includes(searchForm.value.name.toLowerCase());
     
@@ -197,13 +199,10 @@ function handleDelete(template) {
       type: 'warning'
     }
   ).then(() => {
-    const index = messageStore.templates.findIndex(t => t.id === template.id);
-    if (index !== -1) {
-      messageStore.templates.splice(index, 1);
-      ElMessage.success('模板删除成功');
-    }
+    templateStore.deleteTemplate(template.id);
+    ElMessage.success('模板已删除');
   }).catch(() => {
-    // 取消删除
+    // 用户取消
   });
 }
 
@@ -447,102 +446,90 @@ function openEditDialog(template) {
   activeContentType.value = contentKeys.length > 0 ? contentKeys[0] : '';
 }
 
-// 保存模板
+// 发布模板
+function publishTemplate(template) {
+  ElMessageBox.confirm(
+    `确定要发布模板 "${template.templateName}" 吗？`,
+    '发布确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'info'
+    }
+  ).then(() => {
+    templateStore.publishTemplate(template.id);
+    ElMessage.success('模板已发布');
+  }).catch(() => {
+    // 用户取消
+  });
+}
+
+// 加载数据
+function loadData() {
+  loading.value = true;
+  
+  // 加载必要数据
+  const loadTemplatesPromise = new Promise(resolve => {
+    templateStore.loadTemplates();
+    resolve();
+  });
+  
+  const loadTypesPromise = new Promise(resolve => {
+    if (messageTypeStore.messageTypes.length === 0) {
+      messageTypeStore.loadMessageTypes();
+    }
+    resolve();
+  });
+  
+  const loadChannelsPromise = new Promise(resolve => {
+    if (channelStore.channels.length === 0) {
+      channelStore.loadChannels();
+    }
+    resolve();
+  });
+  
+  Promise.all([loadTemplatesPromise, loadTypesPromise, loadChannelsPromise])
+    .then(() => {
+      loading.value = false;
+    })
+    .catch(error => {
+      console.error('加载数据出错:', error);
+      loading.value = false;
+    });
+}
+
+// 复制模板
+function copyTemplate(template) {
+  const newTemplate = JSON.parse(JSON.stringify(template));
+  newTemplate.templateName = `${newTemplate.templateName} (复制)`;
+  newTemplate.templateCode = `${newTemplate.templateCode}_COPY`;
+  newTemplate.status = 'draft';
+  newTemplate.createdTime = new Date().toISOString().replace('T', ' ').substr(0, 19);
+  newTemplate.updatedTime = new Date().toISOString().replace('T', ' ').substr(0, 19);
+  
+  templateStore.addTemplate(newTemplate);
+  ElMessage.success('模板已复制');
+}
+
+// 添加或更新模板
 function saveTemplate() {
   // 表单验证
   if (!currentTemplate.templateName || !currentTemplate.templateCode || !currentTemplate.templateType) {
-    ElMessage.warning('请填写必填项');
+    ElMessage.warning('请填写必填字段');
     return;
   }
   
-  // 设置时间戳
-  const now = new Date().toISOString();
-  if (!currentTemplate.id) {
-    // 新增模板
-    currentTemplate.id = 'TPL' + Date.now();
-    currentTemplate.createdTime = now;
-    currentTemplate.createdBy = 'current_user'; // 实际项目中应从用户会话获取
-    currentTemplate.version = '1.0.0';
-    
-    // 添加到列表
-    messageStore.templates.push(JSON.parse(JSON.stringify(currentTemplate)));
-    ElMessage.success('模板添加成功');
-  } else {
+  if (currentTemplate.id) {
     // 更新模板
-    currentTemplate.updatedTime = now;
-    
-    // 更新版本号
-    if (currentTemplate.version) {
-      const versionParts = currentTemplate.version.split('.');
-      versionParts[2] = (parseInt(versionParts[2]) + 1).toString();
-      currentTemplate.version = versionParts.join('.');
-    } else {
-      currentTemplate.version = '1.0.0';
-    }
-    
-    // 更新列表中的模板
-    const index = messageStore.templates.findIndex(t => t.id === currentTemplate.id);
-    if (index !== -1) {
-      messageStore.templates[index] = JSON.parse(JSON.stringify(currentTemplate));
-      ElMessage.success('模板更新成功');
-    }
+    templateStore.updateTemplate(currentTemplate.id, currentTemplate);
+    ElMessage.success('模板已更新');
+  } else {
+    // 添加新模板
+    templateStore.addTemplate(currentTemplate);
+    ElMessage.success('模板已添加');
   }
   
   templateDialogVisible.value = false;
-}
-
-// 提交模板审核
-const submitForReview = (template) => {
-  const index = messageStore.templates.findIndex(t => t.id === template.id)
-  if (index !== -1) {
-    messageStore.templates[index].status = 'review'
-    messageStore.templates[index].updatedTime = new Date().toISOString()
-    ElMessage.success('模板已提交审核')
-  }
-}
-
-// 发布模板
-const publishTemplate = (template) => {
-  const index = messageStore.templates.findIndex(t => t.id === template.id)
-  if (index !== -1) {
-    messageStore.templates[index].status = 'published'
-    messageStore.templates[index].updatedTime = new Date().toISOString()
-    
-    // 模拟审核信息
-    messageStore.templates[index].reviewInfo = {
-      reviewer: '审核员',
-      reviewTime: new Date().toISOString(),
-      comments: '模板内容符合规范，同意发布'
-    }
-    
-    ElMessage.success('模板已发布')
-  }
-}
-
-// 禁用模板
-const disableTemplate = (template) => {
-  const index = messageStore.templates.findIndex(t => t.id === template.id)
-  if (index !== -1) {
-    messageStore.templates[index].status = 'disabled'
-    messageStore.templates[index].updatedTime = new Date().toISOString()
-    ElMessage.success('模板已禁用')
-  }
-}
-
-// 启用模板
-const enableTemplate = (template) => {
-  const index = messageStore.templates.findIndex(t => t.id === template.id)
-  if (index !== -1) {
-    messageStore.templates[index].status = 'published'
-    messageStore.templates[index].updatedTime = new Date().toISOString()
-    ElMessage.success('模板已启用')
-  }
-}
-
-// 预览模板
-const previewTemplate = (template) => {
-  // 实际项目中应调用预览API
-  ElMessage.success('预览功能待实现')
 }
 
 // 格式化日期
@@ -681,18 +668,7 @@ function getFormatHint() {
 }
 
 onMounted(() => {
-  // 确保数据已加载
-  if (messageStore.templates.length === 0) {
-    messageStore.loadTemplates()
-  }
-  
-  if (messageStore.messageTypes.length === 0) {
-    messageStore.loadMessageTypes()
-  }
-  
-  if (messageStore.channels.length === 0) {
-    messageStore.loadChannels()
-  }
+  loadData();
 })
 </script>
 

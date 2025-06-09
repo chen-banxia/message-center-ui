@@ -1,11 +1,11 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
-import { useMessageStore } from '../stores/messageStore'
+import { useChannelStore } from '@/stores'
 
-const messageStore = useMessageStore()
+const channelStore = useChannelStore()
 
 // 渠道列表
-const channels = computed(() => messageStore.channels)
+const channels = computed(() => channelStore.channels)
 
 // 表格加载状态
 const loading = ref(false)
@@ -124,7 +124,7 @@ const loadChannels = () => {
   
   // 实际项目中应从API获取
   setTimeout(() => {
-    messageStore.loadChannels()
+    channelStore.loadChannels()
     loading.value = false
   }, 500)
 }
@@ -213,100 +213,96 @@ const saveChannel = () => {
     return
   }
   
-  // 转换时间范围格式，从Date对象转回字符串
-  const channelToSave = JSON.parse(JSON.stringify(currentChannel.value))
-  if (channelToSave.availableTime && channelToSave.availableTime.timeRanges) {
-    channelToSave.availableTime.timeRanges = channelToSave.availableTime.timeRanges.map(range => ({
+  // 将时间选择器的Date对象转换回字符串格式
+  if (currentChannel.value.availableTime && currentChannel.value.availableTime.timeRanges) {
+    currentChannel.value.availableTime.timeRanges = currentChannel.value.availableTime.timeRanges.map(range => ({
       start: convertDateToTimeString(range.start),
       end: convertDateToTimeString(range.end)
     }))
   }
   
-  // 实际项目中应调用API保存
   if (dialogMode.value === 'add') {
-    // 模拟添加
-    const newChannel = {
-      ...channelToSave,
-      id: messageStore.channels.length + 1
-    }
-    messageStore.channels.push(newChannel)
+    // 添加新渠道
+    channelStore.addChannel(currentChannel.value)
     ElMessage.success('渠道添加成功')
   } else {
-    // 模拟更新
-    const index = messageStore.channels.findIndex(c => c.id === channelToSave.id)
-    if (index !== -1) {
-      messageStore.channels[index] = { ...channelToSave }
-      ElMessage.success('渠道更新成功')
-    }
+    // 更新渠道
+    channelStore.updateChannel(currentChannel.value.id, currentChannel.value)
+    ElMessage.success('渠道更新成功')
   }
   
   channelDialogVisible.value = false
 }
 
-// 切换渠道状态
-const toggleChannelStatus = (channel) => {
-  const newStatus = channel.status === 'enabled' ? 'disabled' : 'enabled'
-  const index = messageStore.channels.findIndex(c => c.id === channel.id)
+// 测试渠道连接
+const testChannel = (channel) => {
+  testDialogVisible.value = true
+  testResult.value = { success: false, message: '', time: 0 }
+  testLoading.value = false
   
-  if (index !== -1) {
-    messageStore.channels[index].status = newStatus
-    
-    ElMessage.success(`渠道已${newStatus === 'enabled' ? '启用' : '禁用'}`)
-  }
-}
-
-// 打开测试对话框
-const openTestDialog = (channel) => {
-  // 设置当前测试的渠道
-  currentChannel.value = JSON.parse(JSON.stringify(channel))
-  
-  // 重置测试表单
+  // 根据渠道类型设置不同的测试表单
   testForm.value = {
     recipient: '',
-    subject: '测试消息',
-    content: '这是一条测试消息，请勿回复。'
+    subject: channel.type === 'email' || channel.type === 'internal' ? '测试消息' : '',
+    content: '这是一条测试消息，用于验证渠道连接是否正常。'
   }
   
-  // 重置测试结果
-  testResult.value = {
-    success: false,
-    message: '',
-    time: 0
+  // 针对不同渠道类型设置不同的收件人格式提示
+  if (channel.type === 'email') {
+    testForm.value.recipient = 'test@example.com'
+  } else if (channel.type === 'sms') {
+    testForm.value.recipient = '13800138000'
+  } else if (channel.type === 'wechat' || channel.type === 'dingtalk') {
+    testForm.value.recipient = 'user123'
+  } else {
+    testForm.value.recipient = 'test_user'
   }
-  
-  testDialogVisible.value = true
 }
 
 // 执行渠道测试
-const runChannelTest = () => {
-  // 表单验证
-  if (!testForm.value.recipient) {
-    ElMessage.warning('请填写接收者')
-    return
-  }
-  
+const executeChannelTest = (channelId) => {
   testLoading.value = true
-  testResult.value = {
-    success: false,
-    message: '',
-    time: 0
-  }
   
-  // 模拟测试请求
-  const startTime = Date.now()
-  setTimeout(() => {
-    // 随机测试结果
-    const success = Math.random() > 0.3
-    const endTime = Date.now()
-    
-    testResult.value = {
-      success: success,
-      message: success ? '消息发送成功' : '消息发送失败，请检查配置',
-      time: endTime - startTime
+  // 调用store的测试方法
+  channelStore.testChannel(channelId)
+    .then(result => {
+      testResult.value = result
+      testLoading.value = false
+    })
+    .catch(error => {
+      testResult.value = {
+        success: false,
+        message: error.message || '测试失败',
+        time: 0
+      }
+      testLoading.value = false
+    })
+}
+
+// 切换渠道状态
+const toggleChannelStatus = (channel) => {
+  if (channel.status === 'enabled') {
+    channelStore.disableChannel(channel.id)
+  } else {
+    channelStore.enableChannel(channel.id)
+  }
+}
+
+// 删除渠道
+const deleteChannel = (channel) => {
+  ElMessageBox.confirm(
+    `确定要删除渠道 "${channel.name}" 吗？`,
+    '删除确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
     }
-    
-    testLoading.value = false
-  }, 1500)
+  ).then(() => {
+    channelStore.deleteChannel(channel.id)
+  }).catch(() => {
+    // 用户取消
+  })
 }
 
 // 获取渠道类型显示名称
@@ -499,9 +495,9 @@ const initParamMapping = () => {
 
 // 获取默认参数映射
 const getDefaultParamMapping = (channelType) => {
-  // 从 messageStore 中获取全局默认映射配置
+  // 从 channelStore 中获取全局默认映射配置
   // 实际项目中应该从后端API获取
-  const defaultMappings = messageStore.defaultParamMappings || []
+  const defaultMappings = channelStore.defaultParamMappings || []
   
   // 构建映射对象
   const mapping = {}
@@ -661,14 +657,12 @@ const resetAllParamMappings = () => {
 
 onMounted(() => {
   // 确保数据已加载
-  if (messageStore.channels.length === 0) {
+  if (channelStore.channels.length === 0) {
     loadChannels()
   }
   
   // 加载默认参数映射配置
-  if (!messageStore.defaultParamMappings) {
-    messageStore.loadDefaultParamMappings()
-  }
+  channelStore.loadDefaultParamMappings()
 })
 </script>
 
@@ -836,7 +830,7 @@ onMounted(() => {
               type="warning"
               size="small"
               text
-              @click="openTestDialog(row)"
+              @click="testChannel(row)"
               :disabled="row.status !== 'enabled'"
             >
               测试
@@ -1207,7 +1201,7 @@ onMounted(() => {
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="testDialogVisible = false">关闭</el-button>
-          <el-button type="primary" @click="runChannelTest" :loading="testLoading">开始测试</el-button>
+          <el-button type="primary" @click="executeChannelTest(currentChannel.id)" :loading="testLoading">开始测试</el-button>
         </span>
       </template>
     </el-dialog>

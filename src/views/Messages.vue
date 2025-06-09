@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useMessageStore } from '../stores/messageStore'
+import { useMessageStore, useMessageTypeStore } from '@/stores'
 
 const router = useRouter()
 const messageStore = useMessageStore()
+const messageTypeStore = useMessageTypeStore()
 
 // 搜索关键字
 const searchKeyword = ref('')
@@ -94,6 +95,10 @@ const loadMessages = () => {
   // 实际项目中应调用API
   setTimeout(() => {
     messageStore.loadMessages()
+    // 确保消息类型数据已加载
+    if (messageTypeStore.messageTypes.length === 0) {
+      messageTypeStore.loadMessageTypes()
+    }
     tableLoading.value = false
   }, 500)
 }
@@ -145,7 +150,7 @@ onMounted(() => {
           <el-select v-model="activeType" placeholder="消息类型" class="filter-select">
             <el-option label="全部类型" value="all" />
             <el-option
-              v-for="type in messageStore.messageTypes"
+              v-for="type in messageTypeStore.messageTypes"
               :key="type.id"
               :label="type.name"
               :value="type.id.toString()"

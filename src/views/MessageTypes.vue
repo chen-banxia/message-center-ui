@@ -1,11 +1,13 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useMessageStore } from '../stores/messageStore'
+import { useMessageTypeStore, useChannelStore, useTemplateStore } from '@/stores'
 
-const messageStore = useMessageStore()
+const messageTypeStore = useMessageTypeStore()
+const channelStore = useChannelStore()
+const templateStore = useTemplateStore()
 
 // 消息类型列表
-const messageTypes = computed(() => messageStore.messageTypes)
+const messageTypes = computed(() => messageTypeStore.messageTypes)
 
 // 表格加载状态
 const loading = ref(false)
@@ -83,7 +85,16 @@ const loadMessageTypes = () => {
   
   // 实际项目中应从API获取
   setTimeout(() => {
-    messageStore.loadMessageTypes()
+    messageTypeStore.loadMessageTypes()
+    
+    // 确保其他相关数据已加载
+    if (channelStore.channels.length === 0) {
+      channelStore.loadChannels()
+    }
+    if (templateStore.templates.length === 0) {
+      templateStore.loadTemplates()
+    }
+    
     loading.value = false
   }, 500)
 }
@@ -119,27 +130,14 @@ const saveMessageType = () => {
     return
   }
   
-  // 实际项目中应调用API保存
   if (dialogMode.value === 'add') {
-    // 模拟添加
-    const newType = {
-      ...currentType.value,
-      id: messageStore.messageTypes.length + 1,
-      createTime: new Date().toLocaleString(),
-      updateTime: new Date().toLocaleString()
-    }
-    messageStore.messageTypes.push(newType)
+    // 使用store的addMessageType方法
+    messageTypeStore.addMessageType(currentType.value)
     ElMessage.success('消息类型添加成功')
   } else {
-    // 模拟更新
-    const index = messageStore.messageTypes.findIndex(t => t.id === currentType.value.id)
-    if (index !== -1) {
-      messageStore.messageTypes[index] = { 
-        ...currentType.value,
-        updateTime: new Date().toLocaleString()
-      }
-      ElMessage.success('消息类型更新成功')
-    }
+    // 使用store的updateMessageType方法
+    messageTypeStore.updateMessageType(currentType.value.id, currentType.value)
+    ElMessage.success('消息类型更新成功')
   }
   
   typeDialogVisible.value = false
@@ -148,45 +146,39 @@ const saveMessageType = () => {
 // 切换消息类型状态
 const toggleTypeStatus = (type) => {
   const newStatus = type.status === 'enabled' ? 'disabled' : 'enabled'
-  const index = messageStore.messageTypes.findIndex(t => t.id === type.id)
-  
-  if (index !== -1) {
-    messageStore.messageTypes[index].status = newStatus
-    messageStore.messageTypes[index].updateTime = new Date().toLocaleString()
-    
-    ElMessage.success(`消息类型已${newStatus === 'enabled' ? '启用' : '禁用'}`)
-  }
+  messageTypeStore.updateMessageType(type.id, { status: newStatus })
+  ElMessage.success(`消息类型已${newStatus === 'enabled' ? '启用' : '禁用'}`)
 }
 
 // 获取渠道名称
 const getChannelName = (channelId) => {
-  const channel = messageStore.channels.find(c => c.id === channelId)
+  const channel = channelStore.channels.find(c => c.id === channelId)
   return channel ? channel.name : `未知渠道(${channelId})`
 }
 
 // 获取模板名称
 const getTemplateName = (templateId) => {
-  const template = messageStore.templates.find(t => t.id === templateId)
+  const template = templateStore.templates.find(t => t.id === templateId)
   return template ? template.name : `未知模板(${templateId})`
 }
 
 // 获取可选渠道列表
 const availableChannels = computed(() => {
-  return messageStore.channels
+  return channelStore.channels
     .filter(c => c.status === 'enabled')
     .map(c => ({ value: c.id, label: c.name }))
 })
 
 // 获取可选模板列表
 const availableTemplates = computed(() => {
-  return messageStore.templates
+  return templateStore.templates
     .filter(t => t.status === 'published')
     .map(t => ({ value: t.id, label: t.name }))
 })
 
 onMounted(() => {
   // 确保数据已加载
-  if (messageStore.messageTypes.length === 0) {
+  if (messageTypeStore.messageTypes.length === 0) {
     loadMessageTypes()
   }
 })
